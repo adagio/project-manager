@@ -10,6 +10,9 @@ export default defineConfig({
     server: {
       host: true,
       allowedHosts: ['project-manager.ship'],
+      watch: {
+        ignored: ['**/repos/**', '**/data/**'],
+      },
     },
   },
 });
