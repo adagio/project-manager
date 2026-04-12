@@ -1,0 +1,79 @@
+{
+  "categories": [
+    { "id": "part-time", "label": "Tiempo Parcial", "color": "#00B4D8" },
+    { "id": "hourly", "label": "Por Horas", "color": "#F5A623" },
+    { "id": "team", "label": "En Equipo", "color": "#2ECC71" },
+    { "id": "solo", "label": "Solopreneur", "color": "#E040FB" }
+  ],
+  "projects": [
+    {
+      "id": "ftl-trace",
+      "name": "FTL Trace",
+      "category": "part-time",
+      "company": "FTL-Hub",
+      "path": "D:/files/projects/FTL-Hub/FTL Trace/implementation/code/FTL-Trace-TX",
+      "repoUrl": "git@github.com-fintechlab:Fintechlab-Latam/FTL-Trace-TX.git",
+      "baseBranch": "develop",
+      "awPatterns": ["ftl.trace", "FTL-Trace", "fintechlab", "FTL Trace"],
+      "historySlug": "ftl-trace",
+      "tabColor": "#00B4D8"
+    },
+    {
+      "id": "smac-control",
+      "name": "SMAC Control",
+      "category": "part-time",
+      "company": "ASAP",
+      "path": "D:/files/projects/asap/code/smac-control",
+      "repoUrl": "git@bitbucket.org:egnios/smac-control.git",
+      "baseBranch": "development",
+      "awPatterns": ["smac.control", "smac-control", "SMAC Control"],
+      "historySlug": "smac-control",
+      "tabColor": "#F5A623"
+    },
+    {
+      "id": "palpoint",
+      "name": "PalPoint",
+      "category": "team",
+      "company": "PalPoints",
+      "path": "D:/files/projects/PalPoints/PoC/implementation/code/palspoint",
+      "repoUrl": "git@github.com:PalsPoint/palspoint_app.git",
+      "baseBranch": "develop",
+      "awPatterns": ["palpoint", "palspoint", "PalPoint"],
+      "historySlug": "palpoint",
+      "tabColor": "#2ECC71"
+    },
+    {
+      "id": "tiktok-clipper",
+      "name": "TikTok Clipper",
+      "category": "solo",
+      "path": "F:/videos/lives",
+      "repoUrl": "git@github.com:adagio/tiktok-lives.git",
+      "baseBranch": "main",
+      "awPatterns": ["TikTok Clipper", "tiktok.clipper", "tiktok-clipper", "tiktok-lives"],
+      "historySlug": "tiktok-clipper",
+      "tabColor": "#E040FB"
+    },
+    {
+      "id": "gk400f-hp-keyboard",
+      "name": "GK400F HP Keyboard",
+      "category": "solo",
+      "path": "D:/files/projects/individual_me/GK400F-HP-keyboard",
+      "repoUrl": "git@github.com:adagio/GK400F-HP-keyboard.git",
+      "baseBranch": "main",
+      "awPatterns": ["gk400f", "GK400F"],
+      "historySlug": "gk400f-hp-keyboard",
+      "tabColor": "#F5A623"
+    },
+    {
+      "id": "aw-dashboard",
+      "name": "AW Dashboard",
+      "category": "solo",
+      "path": "D:/files/projects/individual_me/aw-dashboard",
+      "repoUrl": "git@github.com:adagio/aw-dashboard.git",
+      "baseBranch": "main",
+      "awPatterns": ["aw.dashboard", "aw-dashboard"],
+      "historySlug": "aw-dashboard",
+      "tabColor": "#6C757D"
+    }
+  ]
+}

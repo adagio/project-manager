@@ -1,0 +1,77 @@
+---
+import type { Project, Category, GitStatus } from '@/lib/types';
+import { formatRelativeDate } from '@/lib/date-utils';
+
+interface Props {
+  project: Project;
+  category: Category;
+  git: GitStatus | null;
+  commandCount: number;
+  claudePromptCount?: number;
+}
+
+const { project, category, git, commandCount, claudePromptCount = 0 } = Astro.props;
+
+const statusColor = !git || !git.isRepo
+  ? 'var(--color-text-muted)'
+  : git.modified > 0 || git.untracked > 0
+    ? 'var(--color-warning)'
+    : 'var(--color-success)';
+
+const statusLabel = !git || !git.isRepo
+  ? 'Sin repo'
+  : git.modified > 0 || git.untracked > 0
+    ? `${git.modified + git.untracked} cambios`
+    : 'Limpio';
+---
+
+<a
+  href={`/proyecto/${project.id}`}
+  class="block rounded-lg p-4 border transition-colors hover:border-opacity-80"
+  style={`background-color: var(--color-surface); border-color: var(--color-border); border-left: 3px solid ${project.tabColor || category.color};`}
+>
+  <div class="flex items-start justify-between mb-2">
+    <h3 class="font-semibold text-sm">{project.name}</h3>
+    <span class="flex items-center gap-1 text-xs" style={`color: ${statusColor};`}>
+      <span class="w-1.5 h-1.5 rounded-full" style={`background-color: ${statusColor};`}></span>
+      {statusLabel}
+    </span>
+  </div>
+
+  {project.company && (
+    <p class="text-xs mb-2" style="color: var(--color-text-muted);">{project.company}</p>
+  )}
+
+  {git?.isRepo && git.lastCommitDate && (
+    <div class="text-xs mb-1" style="color: var(--color-text-muted);">
+      <span class="opacity-60">Commit:</span> {formatRelativeDate(git.lastCommitDate)}
+      {git.lastCommitMessage && (
+        <span class="block truncate mt-0.5 opacity-70">{git.lastCommitMessage}</span>
+      )}
+    </div>
+  )}
+
+  {git?.isRepo && git.branch && (
+    <div class="text-xs" style="color: var(--color-text-muted);">
+      <span class="opacity-60">Rama:</span> {git.branch}
+      {git.ahead > 0 && <span style="color: var(--color-accent);"> +{git.ahead}</span>}
+      {git.behind > 0 && <span style="color: var(--color-warning);"> -{git.behind}</span>}
+      {git.baseBranch && git.baseBranch !== git.branch && (
+        <span class="ml-1 opacity-50">
+          &larr; {git.baseBranch}
+          {git.aheadOfBase > 0 && <span style="color: var(--color-accent);"> +{git.aheadOfBase}</span>}
+          {git.behindBase > 0 && <span style="color: var(--color-warning);"> -{git.behindBase}</span>}
+        </span>
+      )}
+    </div>
+  )}
+
+  <div class="flex gap-3 mt-3 pt-2 border-t text-xs" style="border-color: var(--color-border); color: var(--color-text-muted);">
+    {commandCount > 0 && (
+      <span>{commandCount} cmds</span>
+    )}
+    {claudePromptCount > 0 && (
+      <span>{claudePromptCount} prompts</span>
+    )}
+  </div>
+</a>

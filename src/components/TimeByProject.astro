@@ -1,0 +1,131 @@
+---
+import { formatDuration } from '@/lib/date-utils';
+
+interface ProjectTime {
+  projectName: string;
+  color: string;
+  dailySeconds: Record<string, number>; // date -> seconds
+  totalSeconds: number;
+}
+
+interface Props {
+  data: ProjectTime[];
+  dates: string[];
+}
+
+const { data, dates } = Astro.props;
+
+const formatLabel = (dateStr: string) => {
+  const [, m, d] = dateStr.split('-');
+  return `${d}/${m}`;
+};
+
+const labels = dates.map(formatLabel);
+
+const datasets = data.map(project => ({
+  label: project.projectName,
+  data: dates.map(date => Math.round((project.dailySeconds[date] || 0) / 60) / 60), // hours with 2 decimals
+  backgroundColor: project.color,
+  borderRadius: 2,
+}));
+
+const chartData = JSON.stringify({ labels, datasets });
+---
+
+<div class="rounded-lg border p-4" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <h2 class="text-sm font-semibold mb-3">Tiempo por proyecto</h2>
+
+  {data.length === 0 ? (
+    <div class="py-8 text-center text-sm" style="color: var(--color-text-muted);">
+      Sin datos de ActivityWatch disponibles
+    </div>
+  ) : (
+    <div>
+      <div style="height: 200px;">
+        <canvas id="time-by-project-chart"></canvas>
+      </div>
+
+      <!-- Summary table -->
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b" style="border-color: var(--color-border);">
+              <th class="text-left py-2 font-medium" style="color: var(--color-text-muted);">Proyecto</th>
+              <th class="text-right py-2 font-medium" style="color: var(--color-text-muted);">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.filter(p => p.totalSeconds > 0).sort((a, b) => b.totalSeconds - a.totalSeconds).map(project => (
+              <tr class="border-b" style="border-color: var(--color-border); opacity: 0.8;">
+                <td class="py-1.5 flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" style={`background-color: ${project.color};`}></span>
+                  {project.projectName}
+                </td>
+                <td class="text-right py-1.5 font-mono text-xs" style="color: var(--color-text-muted);">
+                  {formatDuration(project.totalSeconds)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )}
+</div>
+
+<script is:inline define:vars={{ chartData }}>
+  import('https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js').then((module) => {
+    const Chart = module.default || module.Chart || window.Chart;
+    const ctx = document.getElementById('time-by-project-chart');
+    if (!ctx) return;
+
+    const data = JSON.parse(chartData);
+    if (data.datasets.every(ds => ds.data.every(v => v === 0))) return;
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: data,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            stacked: true,
+            ticks: { color: '#94a3b8', font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 15 },
+            grid: { display: false },
+          },
+          y: {
+            stacked: true,
+            beginAtZero: true,
+            title: { display: true, text: 'horas', color: '#94a3b8', font: { size: 10 } },
+            ticks: { color: '#94a3b8', font: { size: 10 } },
+            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+          },
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, boxHeight: 12, padding: 12 },
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: '#1e293b',
+            titleColor: '#f1f5f9',
+            bodyColor: '#94a3b8',
+            borderColor: '#334155',
+            borderWidth: 1,
+            callbacks: {
+              label: function(item) {
+                if (item.raw === 0) return null;
+                const hrs = Number(item.raw).toFixed(1);
+                return item.dataset.label + ': ' + hrs + 'h';
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+</script>

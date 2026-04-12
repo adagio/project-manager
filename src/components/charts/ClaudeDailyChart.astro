@@ -1,0 +1,89 @@
+---
+import type { ClaudeDailyActivity } from '@/lib/types';
+
+interface Props {
+  activity: ClaudeDailyActivity[];
+}
+
+const { activity } = Astro.props;
+
+const formatLabel = (dateStr: string) => {
+  const [, m, d] = dateStr.split('-');
+  return `${d}/${m}`;
+};
+
+const labels = activity.map(a => formatLabel(a.date));
+const data = activity.map(a => a.promptCount);
+
+const chartData = JSON.stringify({
+  labels,
+  datasets: [{
+    label: 'Prompts',
+    data,
+    backgroundColor: '#8b5cf6',
+    borderRadius: 2,
+  }],
+});
+---
+
+<div class="rounded-lg border p-4" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <h2 class="text-sm font-semibold mb-3">Actividad diaria de Claude Code</h2>
+  <div style="height: 200px;">
+    <canvas id="claude-daily-chart"></canvas>
+  </div>
+</div>
+
+<script is:inline define:vars={{ chartData }}>
+  import('https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js').then((module) => {
+    const Chart = module.default || module.Chart || window.Chart;
+    const ctx = document.getElementById('claude-daily-chart');
+    if (!ctx) return;
+
+    const data = JSON.parse(chartData);
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: data,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 9 },
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 15,
+            },
+            grid: { display: false },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 10 },
+              stepSize: 1,
+            },
+            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+          },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#f1f5f9',
+            bodyColor: '#94a3b8',
+            borderColor: '#334155',
+            borderWidth: 1,
+            callbacks: {
+              label: function(item) {
+                return item.raw + ' prompt' + (item.raw !== 1 ? 's' : '');
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+</script>

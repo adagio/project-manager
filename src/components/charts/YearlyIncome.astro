@@ -1,0 +1,151 @@
+---
+import type { MonthlyIncome } from '@/lib/data/financials';
+
+interface Props {
+  data: MonthlyIncome[];
+  monthlyTotals: number[];
+  year: number;
+}
+
+const { data, monthlyTotals, year } = Astro.props;
+
+const monthLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+
+const typeLabels: Record<string, string> = {
+  fixed: 'Fijo',
+  hourly: 'Por horas',
+  mixed: 'Mixto',
+};
+
+const datasets = data.map(project => ({
+  label: project.projectName,
+  data: project.months,
+  backgroundColor: project.color,
+  borderRadius: 3,
+}));
+
+const chartData = JSON.stringify({ labels: monthLabels, datasets });
+---
+
+<div class="rounded-lg border p-4" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <h2 class="text-sm font-semibold mb-3">Ingresos por proyecto — {year}</h2>
+
+  {data.length === 0 ? (
+    <div class="py-8 text-center text-sm" style="color: var(--color-text-muted);">
+      Sin datos de ingresos para {year}
+    </div>
+  ) : (
+    <div>
+      <div style="height: 220px;">
+        <canvas id="yearly-income-chart"></canvas>
+      </div>
+
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full text-xs">
+          <thead>
+            <tr class="border-b" style="border-color: var(--color-border);">
+              <th class="text-left py-2 font-medium sticky left-0" style="color: var(--color-text-muted); background-color: var(--color-surface);">Proyecto</th>
+              <th class="text-left py-2 font-medium px-1.5" style="color: var(--color-text-muted);">Tipo</th>
+              {monthLabels.map(m => (
+                <th class="text-right py-2 font-medium px-1.5" style="color: var(--color-text-muted);">{m}</th>
+              ))}
+              <th class="text-right py-2 font-semibold px-1.5" style="color: var(--color-text);">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map(project => (
+              <tr class="border-b" style="border-color: var(--color-border);">
+                <td class="py-1.5 flex items-center gap-2 sticky left-0" style="background-color: var(--color-surface);">
+                  <span class="w-2 h-2 rounded-full shrink-0" style={`background-color: ${project.color};`}></span>
+                  <span class="truncate">{project.projectName}</span>
+                </td>
+                <td class="py-1.5 px-1.5" style="color: var(--color-text-muted);">{typeLabels[project.paymentType] || project.paymentType}</td>
+                {project.months.map(amount => (
+                  <td class="text-right py-1.5 px-1.5 font-mono" style={`color: ${amount > 0 ? 'var(--color-text-muted)' : 'var(--color-border)'};`}>
+                    {amount > 0 ? fmt(amount) : '-'}
+                  </td>
+                ))}
+                <td class="text-right py-1.5 px-1.5 font-mono font-semibold">
+                  {fmt(project.total)}
+                </td>
+              </tr>
+            ))}
+            <!-- Totals row -->
+            <tr class="border-t-2" style="border-color: var(--color-text-muted);">
+              <td class="py-2 font-semibold sticky left-0" style="background-color: var(--color-surface);" colspan="2">Total</td>
+              {monthlyTotals.map(amount => (
+                <td class="text-right py-2 px-1.5 font-mono font-semibold">
+                  {amount > 0 ? fmt(amount) : '-'}
+                </td>
+              ))}
+              <td class="text-right py-2 px-1.5 font-mono font-bold" style="color: var(--color-success);">
+                {fmt(monthlyTotals.reduce((a, b) => a + b, 0))}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )}
+</div>
+
+<script is:inline define:vars={{ chartData }}>
+  import('https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js').then((module) => {
+    const Chart = module.default || module.Chart || window.Chart;
+    const ctx = document.getElementById('yearly-income-chart');
+    if (!ctx) return;
+
+    const data = JSON.parse(chartData);
+    if (data.datasets.every(ds => ds.data.every(v => v === 0))) return;
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: data,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            stacked: true,
+            ticks: { color: '#94a3b8', font: { size: 11 } },
+            grid: { display: false },
+          },
+          y: {
+            stacked: true,
+            beginAtZero: true,
+            title: { display: true, text: 'USD', color: '#94a3b8', font: { size: 10 } },
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 10 },
+              callback: function(value) { return '$' + value.toLocaleString(); },
+            },
+            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+          },
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, boxHeight: 12, padding: 12 },
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: '#1e293b',
+            titleColor: '#f1f5f9',
+            bodyColor: '#94a3b8',
+            borderColor: '#334155',
+            borderWidth: 1,
+            callbacks: {
+              label: function(item) {
+                if (item.raw === 0) return null;
+                return item.dataset.label + ': $' + Number(item.raw).toLocaleString();
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+</script>

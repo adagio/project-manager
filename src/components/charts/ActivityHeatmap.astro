@@ -1,0 +1,95 @@
+---
+interface Props {
+  activity: Map<string, number>;
+  days?: number;
+}
+
+const { activity, days = 90 } = Astro.props;
+
+// Build grid: 7 rows (Mon-Sun) x N weeks
+const today = new Date();
+const startDate = new Date(today);
+startDate.setDate(startDate.getDate() - days);
+
+// Align to Monday
+const dayOfWeek = startDate.getDay();
+const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+startDate.setDate(startDate.getDate() - diff);
+
+const maxCount = Math.max(1, ...activity.values());
+
+interface Cell {
+  date: string;
+  count: number;
+  level: number; // 0-4
+}
+
+const weeks: Cell[][] = [];
+let currentWeek: Cell[] = [];
+const cursor = new Date(startDate);
+
+while (cursor <= today) {
+  const dateStr = cursor.toISOString().split('T')[0];
+  const count = activity.get(dateStr) || 0;
+  const level = count === 0 ? 0 : Math.min(4, Math.ceil((count / maxCount) * 4));
+
+  currentWeek.push({ date: dateStr, count, level });
+
+  if (currentWeek.length === 7) {
+    weeks.push(currentWeek);
+    currentWeek = [];
+  }
+
+  cursor.setDate(cursor.getDate() + 1);
+}
+if (currentWeek.length > 0) {
+  weeks.push(currentWeek);
+}
+
+const dayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+
+const levelColors = [
+  'var(--color-surface-hover)',
+  '#1a4731',
+  '#166534',
+  '#16a34a',
+  '#22c55e',
+];
+---
+
+<div class="rounded-lg border p-4" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <h2 class="text-sm font-semibold mb-3">Actividad de commits</h2>
+
+  <div class="flex gap-0.5 overflow-x-auto">
+    <!-- Day labels -->
+    <div class="flex flex-col gap-0.5 mr-1 shrink-0">
+      {dayLabels.map(label => (
+        <div class="w-4 h-3 flex items-center justify-center text-[9px]" style="color: var(--color-text-muted);">
+          {label}
+        </div>
+      ))}
+    </div>
+
+    <!-- Weeks -->
+    {weeks.map(week => (
+      <div class="flex flex-col gap-0.5">
+        {week.map(cell => (
+          <div
+            class="w-3 h-3 rounded-sm"
+            style={`background-color: ${levelColors[cell.level]};`}
+            title={`${cell.date}: ${cell.count} commit${cell.count !== 1 ? 's' : ''}`}
+          />
+        ))}
+      </div>
+    ))}
+  </div>
+
+  <!-- Legend -->
+  <div class="flex items-center gap-1 mt-3 text-[10px]" style="color: var(--color-text-muted);">
+    <span>Menos</span>
+    {levelColors.map(color => (
+      <div class="w-3 h-3 rounded-sm" style={`background-color: ${color};`}></div>
+    ))}
+    <span>Mas</span>
+  </div>
+</div>

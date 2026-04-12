@@ -1,0 +1,128 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import PageHeader from '@/components/PageHeader.astro';
+import YearlyActivity from '@/components/charts/YearlyActivity.astro';
+import YearlyIncome from '@/components/charts/YearlyIncome.astro';
+import FinancialCards from '@/components/FinancialCards.astro';
+import { getRegistry } from '@/lib/projects';
+import { isAWAvailable, getDailyTimeByProject } from '@/lib/aw-client';
+import { getYearlyIncome } from '@/lib/data/financials';
+import { getCurrency } from '@/lib/data/settings';
+
+const registry = getRegistry();
+const currentYear = new Date().getFullYear();
+const year = parseInt(Astro.url.searchParams.get('year') || String(currentYear), 10);
+const currency = getCurrency();
+
+const prevYear = year - 1;
+const nextYear = year + 1;
+const canGoNext = nextYear <= currentYear;
+
+// Financial data
+const incomeReport = getYearlyIncome(registry.projects, year);
+const currentMonth = new Date().getMonth(); // 0-based
+const monthsElapsed = year === currentYear ? currentMonth + 1 : 12;
+const monthlyAvg = monthsElapsed > 0 ? incomeReport.grandTotal / monthsElapsed : 0;
+const projectedAnnual = monthlyAvg * 12;
+
+// AW time data
+const awAvailable = await isAWAvailable();
+
+interface ProjectYearData {
+  projectName: string;
+  color: string;
+  monthlyHours: number[];
+  totalHours: number;
+}
+
+let yearData: ProjectYearData[] = [];
+
+if (awAvailable) {
+  const from = new Date(year, 0, 1);
+  const to = year === currentYear ? new Date() : new Date(year, 11, 31, 23, 59, 59);
+
+  const dailyMap = await getDailyTimeByProject(registry.projects, from, to);
+
+  yearData = registry.projects
+    .filter(p => p.awPatterns && p.awPatterns.length > 0)
+    .map(p => {
+      const dayMap = dailyMap.get(p.id);
+      const monthlyHours = new Array(12).fill(0);
+
+      if (dayMap) {
+        for (const [dateStr, secs] of dayMap) {
+          const month = parseInt(dateStr.split('-')[1], 10) - 1;
+          monthlyHours[month] += secs / 3600;
+        }
+      }
+
+      const totalHours = monthlyHours.reduce((a, b) => a + b, 0);
+      return { projectName: p.name, color: p.tabColor || '#94a3b8', monthlyHours, totalHours };
+    })
+    .filter(d => d.totalHours > 0);
+}
+---
+
+<Layout title="Reportes — Gestor de Proyectos">
+  <PageHeader title="Reportes" subtitle={`Año ${year}`}>
+    <div class="flex items-center gap-2">
+      <a
+        href={`/reportes?year=${prevYear}`}
+        class="px-2 py-1 text-sm rounded transition-colors"
+        style="background-color: var(--color-surface); color: var(--color-text-muted); border: 1px solid var(--color-border);"
+      >
+        &larr; {prevYear}
+      </a>
+      <span class="text-sm font-semibold px-2">{year}</span>
+      {canGoNext ? (
+        <a
+          href={`/reportes?year=${nextYear}`}
+          class="px-2 py-1 text-sm rounded transition-colors"
+          style="background-color: var(--color-surface); color: var(--color-text-muted); border: 1px solid var(--color-border);"
+        >
+          {nextYear} &rarr;
+        </a>
+      ) : (
+        <span class="px-2 py-1 text-sm rounded" style="color: var(--color-border);">{nextYear} &rarr;</span>
+      )}
+    </div>
+  </PageHeader>
+
+  <div class="p-6 space-y-6">
+    <!-- Financial section -->
+    <div>
+      <h2 class="text-xs font-semibold uppercase tracking-wider mb-4" style="color: var(--color-text-muted);">Ingresos</h2>
+
+      <div class="space-y-6">
+        <FinancialCards
+          totalYTD={incomeReport.grandTotal}
+          totalPending={incomeReport.totalPending}
+          monthlyAvg={monthlyAvg}
+          projectedAnnual={projectedAnnual}
+          currency={currency}
+        />
+
+        <YearlyIncome
+          data={incomeReport.projects}
+          monthlyTotals={incomeReport.monthlyTotals}
+          year={year}
+        />
+      </div>
+    </div>
+
+    <!-- Time section -->
+    <div>
+      <h2 class="text-xs font-semibold uppercase tracking-wider mb-4" style="color: var(--color-text-muted);">Tiempo dedicado</h2>
+
+      {awAvailable ? (
+        <YearlyActivity data={yearData} year={year} />
+      ) : (
+        <div class="rounded-lg border p-4" style="background-color: var(--color-surface); border-color: var(--color-border);">
+          <p class="text-sm" style="color: var(--color-text-muted);">ActivityWatch no disponible</p>
+        </div>
+      )}
+    </div>
+  </div>
+</Layout>

@@ -1,0 +1,25 @@
+---
+import '../styles/index.css';
+import Sidebar from '../components/Sidebar.astro';
+
+interface Props {
+  title?: string;
+}
+
+const { title = 'Gestor de Proyectos' } = Astro.props;
+---
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{title}</title>
+</head>
+<body>
+  <div class="flex h-screen overflow-hidden">
+    <Sidebar currentPage={Astro.url.pathname} />
+    <main class="flex-1 overflow-y-auto">
+      <slot />
+    </main>
+  </div>
+</body>
+</html>

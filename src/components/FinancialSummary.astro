@@ -1,0 +1,127 @@
+---
+import { formatDuration } from '@/lib/date-utils';
+
+interface FixedPayment {
+  amount: number;
+  currency: string;
+  period: string;
+  startDate: string;
+  endDate: string | null;
+}
+
+interface InvoiceSummary {
+  totalInvoiced: number;
+  totalPaid: number;
+  totalPending: number;
+  totalOverdue: number;
+  count: number;
+}
+
+interface Props {
+  paymentType: string;
+  fixedPayments: FixedPayment[];
+  effectiveRate: number;
+  currency: string;
+  totalHoursAW: number;
+  invoiceSummary: InvoiceSummary;
+  yearlyFixedTotal: number;
+}
+
+const { paymentType, fixedPayments, effectiveRate, currency, totalHoursAW, invoiceSummary, yearlyFixedTotal } = Astro.props;
+
+const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(n);
+---
+
+<div class="rounded-lg border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <div class="px-4 py-3 border-b" style="border-color: var(--color-border);">
+    <h2 class="text-sm font-semibold">Financiero</h2>
+  </div>
+
+  <div class="p-4 space-y-4">
+    <!-- Payment structure -->
+    <div>
+      <div class="text-xs uppercase tracking-wider mb-2" style="color: var(--color-text-muted);">Estructura de pago</div>
+      {paymentType === 'fixed' && fixedPayments.length > 0 ? (
+        <div class="space-y-2">
+          {fixedPayments.map(fp => (
+            <div class="flex items-center justify-between">
+              <span class="text-sm">
+                Pago fijo {fp.period === 'monthly' ? 'mensual' : 'quincenal'}
+              </span>
+              <span class="text-lg font-bold" style="color: var(--color-success);">
+                {fmt(fp.amount)}
+              </span>
+            </div>
+          ))}
+          <div class="flex items-center justify-between text-xs" style="color: var(--color-text-muted);">
+            <span>Desde {fixedPayments[0].startDate}</span>
+            <span>Proyección anual: {fmt(yearlyFixedTotal)}</span>
+          </div>
+        </div>
+      ) : paymentType === 'hourly' ? (
+        <div class="flex items-center justify-between">
+          <span class="text-sm">Rate por hora</span>
+          <span class="text-lg font-bold" style="color: var(--color-accent);">
+            {fmt(effectiveRate)}/hr
+          </span>
+        </div>
+      ) : (
+        <div class="flex items-center justify-between">
+          <span class="text-sm">Mixto (fijo + horas)</span>
+          <span class="text-sm" style="color: var(--color-text-muted);">
+            {fmt(effectiveRate)}/hr + fijo
+          </span>
+        </div>
+      )}
+    </div>
+
+    <!-- Time invested (from AW) -->
+    {totalHoursAW > 0 && (
+      <div>
+        <div class="text-xs uppercase tracking-wider mb-2" style="color: var(--color-text-muted);">Tiempo invertido (este mes)</div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm">{formatDuration(totalHoursAW * 3600)}</span>
+          {paymentType === 'hourly' && (
+            <span class="text-sm" style="color: var(--color-text-muted);">
+              ~ {fmt(totalHoursAW * effectiveRate)}
+            </span>
+          )}
+          {paymentType === 'fixed' && fixedPayments.length > 0 && (
+            <span class="text-sm" style="color: var(--color-text-muted);">
+              ~ {fmt(fixedPayments[0].amount / totalHoursAW)}/hr efectivo
+            </span>
+          )}
+        </div>
+      </div>
+    )}
+
+    <!-- Invoices -->
+    {invoiceSummary.count > 0 && (
+      <div>
+        <div class="text-xs uppercase tracking-wider mb-2" style="color: var(--color-text-muted);">Facturación</div>
+        <div class="grid grid-cols-2 gap-2">
+          <div class="rounded p-2" style="background-color: var(--color-surface-hover);">
+            <div class="text-xs" style="color: var(--color-text-muted);">Facturado</div>
+            <div class="text-sm font-semibold">{fmt(invoiceSummary.totalInvoiced)}</div>
+          </div>
+          <div class="rounded p-2" style="background-color: var(--color-surface-hover);">
+            <div class="text-xs" style="color: var(--color-text-muted);">Cobrado</div>
+            <div class="text-sm font-semibold" style="color: var(--color-success);">{fmt(invoiceSummary.totalPaid)}</div>
+          </div>
+          {invoiceSummary.totalPending > 0 && (
+            <div class="rounded p-2" style="background-color: var(--color-surface-hover);">
+              <div class="text-xs" style="color: var(--color-text-muted);">Pendiente</div>
+              <div class="text-sm font-semibold" style="color: var(--color-warning);">{fmt(invoiceSummary.totalPending)}</div>
+            </div>
+          )}
+          {invoiceSummary.totalOverdue > 0 && (
+            <div class="rounded p-2" style="background-color: var(--color-surface-hover);">
+              <div class="text-xs" style="color: var(--color-text-muted);">Vencido</div>
+              <div class="text-sm font-semibold" style="color: var(--color-danger);">{fmt(invoiceSummary.totalOverdue)}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+  </div>
+</div>

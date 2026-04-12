@@ -1,0 +1,240 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import PageHeader from '@/components/PageHeader.astro';
+import GitActivity from '@/components/GitActivity.astro';
+import HistoryPreview from '@/components/HistoryPreview.astro';
+import ActivityHeatmap from '@/components/charts/ActivityHeatmap.astro';
+import { getProject, getCategory } from '@/lib/projects';
+import { getRepoPath, getGitStatus, getRecentCommits, getCommitActivity } from '@/lib/git-client';
+import { getRecentCommands, getCommandCount, hasHistory } from '@/lib/history-client';
+import PRList from '@/components/PRList.astro';
+import ClaudeActivityPreview from '@/components/ClaudeActivityPreview.astro';
+import { getPRs } from '@/lib/pr-client';
+import { hasClaudeActivity, getRecentPrompts, getClaudePromptCount, getClaudeSessions } from '@/lib/claude-client';
+import TimeByProject from '@/components/TimeByProject.astro';
+import DateRangePicker from '@/components/DateRangePicker.astro';
+import FinancialSummary from '@/components/FinancialSummary.astro';
+import MonthlyEntryForm from '@/components/MonthlyEntryForm.astro';
+import { isAWAvailable, getDailyTimeByProject, getTimeByProject } from '@/lib/aw-client';
+import { getDateRange, type RangeKey } from '@/lib/date-utils';
+import { getEffectiveRate, getCurrency } from '@/lib/data/settings';
+import { getInvoiceSummary } from '@/lib/data/invoices';
+import { db } from '@/lib/db/index';
+import { projectConfig, fixedPayments } from '@/lib/db/schema';
+import { eq, and, lte, or, isNull } from 'drizzle-orm';
+
+const { id } = Astro.params;
+
+const project = getProject(id!);
+if (!project) {
+  return Astro.redirect('/');
+}
+
+const category = getCategory(project.category);
+
+// AW time data
+const range = (Astro.url.searchParams.get('range') as RangeKey) || 'week';
+const offset = parseInt(Astro.url.searchParams.get('offset') || '0', 10);
+const dateRange = getDateRange(range, offset);
+
+const dates: string[] = [];
+const dateCursor = new Date(dateRange.start);
+while (dateCursor <= dateRange.end) {
+  dates.push(dateCursor.toISOString().split('T')[0]);
+  dateCursor.setDate(dateCursor.getDate() + 1);
+}
+
+const awAvailable = await isAWAvailable();
+let timeData: { projectName: string; color: string; dailySeconds: Record<string, number>; totalSeconds: number }[] = [];
+
+if (awAvailable && project.awPatterns && project.awPatterns.length > 0) {
+  const dailyMap = await getDailyTimeByProject([project], dateRange.start, dateRange.end);
+  if (dailyMap.has(project.id)) {
+    const dayMap = dailyMap.get(project.id)!;
+    const dailySeconds: Record<string, number> = {};
+    let totalSeconds = 0;
+    for (const [date, secs] of dayMap) {
+      dailySeconds[date] = secs;
+      totalSeconds += secs;
+    }
+    timeData = [{
+      projectName: project.name,
+      color: project.tabColor || '#94a3b8',
+      dailySeconds,
+      totalSeconds,
+    }];
+  }
+}
+
+// Git data (from PM's own clone in repos/)
+const repoPath = getRepoPath(project);
+const gitStatus = repoPath ? getGitStatus(repoPath) : getGitStatus('');
+const commits = repoPath ? getRecentCommits(repoPath, 20) : [];
+const commitActivity = repoPath ? getCommitActivity(repoPath, 90) : new Map();
+
+// History data
+const historySlug = project.historySlug;
+const historyAvailable = historySlug ? hasHistory(historySlug) : false;
+const recentCommands = historySlug ? getRecentCommands(historySlug, 25) : [];
+const commandCount = historySlug ? getCommandCount(historySlug) : 0;
+
+// Claude Code activity
+const claudeAvailable = hasClaudeActivity(project);
+const recentPrompts = claudeAvailable ? getRecentPrompts(project, 25) : [];
+const claudePromptCount = claudeAvailable ? getClaudePromptCount(project) : 0;
+const claudeSessions = claudeAvailable ? getClaudeSessions(project) : [];
+
+// PRs
+const prs = getPRs(project, 15);
+
+// Financial data
+const config = db.select().from(projectConfig).where(eq(projectConfig.projectId, project.id)).get();
+const paymentType = config?.paymentType || 'hourly';
+const effectiveRate = getEffectiveRate(project.id);
+const currency = getCurrency();
+const invoiceSummary = getInvoiceSummary(project.id);
+
+const now = new Date();
+const fpRows = db.select().from(fixedPayments).where(
+  and(
+    eq(fixedPayments.projectId, project.id),
+    lte(fixedPayments.startDate, now.toISOString().split('T')[0]),
+    or(isNull(fixedPayments.endDate), lte(now.toISOString().split('T')[0], fixedPayments.endDate!)),
+  )
+).all();
+
+const fixedPaymentData = fpRows.map(fp => ({
+  amount: fp.amount,
+  currency: fp.currency,
+  period: fp.period,
+  startDate: fp.startDate,
+  endDate: fp.endDate,
+}));
+
+const yearlyFixedTotal = fpRows.reduce((sum, fp) => {
+  return sum + fp.amount * (fp.period === 'monthly' ? 12 : 26);
+}, 0);
+
+// AW hours this month for financial context
+let monthlyHoursAW = 0;
+if (awAvailable && project.awPatterns && project.awPatterns.length > 0) {
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthTime = await getTimeByProject([project], monthStart, now);
+  monthlyHoursAW = (monthTime.get(project.id) || 0) / 3600;
+}
+
+const statusColor = !gitStatus.isRepo
+  ? 'var(--color-text-muted)'
+  : gitStatus.modified > 0 || gitStatus.untracked > 0
+    ? 'var(--color-warning)'
+    : 'var(--color-success)';
+
+const statusText = !gitStatus.isRepo
+  ? 'Sin repositorio Git'
+  : gitStatus.modified > 0 || gitStatus.untracked > 0
+    ? `${gitStatus.modified + gitStatus.untracked} cambios pendientes`
+    : 'Repositorio limpio';
+---
+
+<Layout title={`${project.name} — Gestor de Proyectos`}>
+  <PageHeader
+    title={project.name}
+    subtitle={project.company ? `${category?.label} — ${project.company}` : category?.label}
+    color={project.tabColor || category?.color}
+  />
+
+  <div class="p-6 space-y-6">
+    <!-- Status bar -->
+    <div class="flex flex-wrap gap-4">
+      <div class="flex items-center gap-2 text-sm">
+        <span class="w-2 h-2 rounded-full" style={`background-color: ${statusColor};`}></span>
+        <span style={`color: ${statusColor};`}>{statusText}</span>
+      </div>
+      {gitStatus.isRepo && gitStatus.branch && (
+        <div class="text-sm" style="color: var(--color-text-muted);">
+          Rama: <code class="px-1.5 py-0.5 rounded text-xs" style="background-color: var(--color-surface-hover);">{gitStatus.branch}</code>
+          {gitStatus.ahead > 0 && <span style="color: var(--color-accent);"> +{gitStatus.ahead} ahead</span>}
+          {gitStatus.behind > 0 && <span style="color: var(--color-warning);"> -{gitStatus.behind} behind</span>}
+          {gitStatus.baseBranch && gitStatus.baseBranch !== gitStatus.branch && (
+            <span class="ml-2">
+              &larr; <code class="px-1.5 py-0.5 rounded text-xs" style="background-color: var(--color-surface-hover);">{gitStatus.baseBranch}</code>
+              {gitStatus.aheadOfBase > 0 && <span style="color: var(--color-accent);"> +{gitStatus.aheadOfBase}</span>}
+              {gitStatus.behindBase > 0 && <span style="color: var(--color-warning);"> -{gitStatus.behindBase}</span>}
+            </span>
+          )}
+        </div>
+      )}
+      <div class="text-sm" style="color: var(--color-text-muted);">
+        Ruta: <code class="text-xs opacity-60">{project.path}</code>
+      </div>
+    </div>
+
+    <!-- Financial -->
+    <FinancialSummary
+      paymentType={paymentType}
+      fixedPayments={fixedPaymentData}
+      effectiveRate={effectiveRate}
+      currency={currency}
+      totalHoursAW={monthlyHoursAW}
+      invoiceSummary={invoiceSummary}
+      yearlyFixedTotal={yearlyFixedTotal}
+    />
+
+    <!-- Monthly entry form (for hourly/mixed projects) -->
+    {(paymentType === 'hourly' || paymentType === 'mixed') && (
+      <MonthlyEntryForm project={project} rate={effectiveRate} currency={currency} />
+    )}
+
+    <!-- AW Time -->
+    {project.awPatterns && project.awPatterns.length > 0 && (
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold" style="color: var(--color-text-muted);">Tiempo dedicado</h2>
+          <DateRangePicker currentRange={range} basePath={`/proyecto/${project.id}`} offset={offset} label={dateRange.label} />
+        </div>
+        {awAvailable ? (
+          <TimeByProject data={timeData} dates={dates} />
+        ) : (
+          <div class="rounded-lg border p-4" style="background-color: var(--color-surface); border-color: var(--color-border);">
+            <p class="text-sm" style="color: var(--color-text-muted);">ActivityWatch no disponible</p>
+          </div>
+        )}
+      </div>
+    )}
+
+    <!-- Heatmap -->
+    {gitStatus.isRepo && (
+      <ActivityHeatmap activity={commitActivity} />
+    )}
+
+    <!-- Two column layout: Commits + History -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <GitActivity commits={commits} />
+
+      {historySlug && (
+        <HistoryPreview entries={recentCommands} totalCount={commandCount} />
+      )}
+
+      {claudeAvailable && (
+        <ClaudeActivityPreview
+          prompts={recentPrompts}
+          totalCount={claudePromptCount}
+          sessionCount={claudeSessions.length}
+        />
+      )}
+
+      {!historySlug && !claudeAvailable && (
+        <div class="rounded-lg border p-4 flex items-center justify-center" style="background-color: var(--color-surface); border-color: var(--color-border);">
+          <p class="text-sm" style="color: var(--color-text-muted);">Sin perfil de terminal configurado</p>
+        </div>
+      )}
+    </div>
+
+    <!-- PRs -->
+    {project.repoUrl && (
+      <PRList prs={prs} />
+    )}
+  </div>
+</Layout>

@@ -1,0 +1,71 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import PageHeader from '@/components/PageHeader.astro';
+import DateRangePicker from '@/components/DateRangePicker.astro';
+import TimeByProject from '@/components/TimeByProject.astro';
+import { getRegistry } from '@/lib/projects';
+import { isAWAvailable, getDailyTimeByProject } from '@/lib/aw-client';
+import { getDateRange, type RangeKey } from '@/lib/date-utils';
+
+const registry = getRegistry();
+const range = (Astro.url.searchParams.get('range') as RangeKey) || 'week';
+const offset = parseInt(Astro.url.searchParams.get('offset') || '0', 10);
+const dateRange = getDateRange(range, offset);
+
+// Generate date list for the range
+const dates: string[] = [];
+const cursor = new Date(dateRange.start);
+while (cursor <= dateRange.end) {
+  dates.push(cursor.toISOString().split('T')[0]);
+  cursor.setDate(cursor.getDate() + 1);
+}
+
+// ActivityWatch data
+const awAvailable = await isAWAvailable();
+let timeData: { projectName: string; color: string; dailySeconds: Record<string, number>; totalSeconds: number }[] = [];
+
+if (awAvailable) {
+  const dailyMap = await getDailyTimeByProject(registry.projects, dateRange.start, dateRange.end);
+
+  timeData = registry.projects
+    .filter(p => dailyMap.has(p.id))
+    .map(p => {
+      const dayMap = dailyMap.get(p.id)!;
+      const dailySeconds: Record<string, number> = {};
+      let totalSeconds = 0;
+      for (const [date, secs] of dayMap) {
+        dailySeconds[date] = secs;
+        totalSeconds += secs;
+      }
+      return {
+        projectName: p.name,
+        color: p.tabColor || '#94a3b8',
+        dailySeconds,
+        totalSeconds,
+      };
+    })
+    .filter(d => d.totalSeconds > 0);
+}
+
+---
+
+<Layout title="Análisis — Gestor de Proyectos">
+  <PageHeader title="Análisis" subtitle={dateRange.label}>
+    <DateRangePicker currentRange={range} basePath="/analisis" offset={offset} label={dateRange.label} />
+  </PageHeader>
+
+  <div class="p-6 space-y-6">
+    <!-- AW Time section -->
+    {awAvailable ? (
+      <TimeByProject data={timeData} dates={dates} />
+    ) : (
+      <div class="rounded-lg border p-4" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        <h2 class="text-sm font-semibold mb-2">Tiempo por proyecto</h2>
+        <p class="text-sm" style="color: var(--color-text-muted);">ActivityWatch no disponible — inicia el servicio en localhost:5600</p>
+      </div>
+    )}
+
+  </div>
+</Layout>

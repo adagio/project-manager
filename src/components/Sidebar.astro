@@ -1,0 +1,87 @@
+---
+import { getProjectsByCategory } from '@/lib/projects';
+
+interface Props {
+  currentPage: string;
+}
+
+const { currentPage } = Astro.props;
+const grouped = getProjectsByCategory();
+
+const isActive = (href: string) => decodeURIComponent(currentPage) === href;
+---
+
+<aside class="w-56 flex flex-col h-screen border-r shrink-0" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <div class="p-4 border-b" style="border-color: var(--color-border);">
+    <a href="/" class="text-lg font-bold" style="color: var(--color-accent);">Proyectos</a>
+  </div>
+
+  <nav class="flex-1 overflow-y-auto p-2 space-y-4">
+    <a
+      href="/"
+      class={`block px-3 py-2 text-sm rounded ${isActive('/') ? 'font-semibold' : ''}`}
+      style={isActive('/') ? `background-color: var(--color-surface-hover); color: var(--color-accent);` : `color: var(--color-text-muted);`}
+    >
+      Dashboard
+    </a>
+
+    <a
+      href="/analisis"
+      class={`block px-3 py-2 text-sm rounded ${isActive('/analisis') ? 'font-semibold' : ''}`}
+      style={isActive('/analisis') ? `background-color: var(--color-surface-hover); color: var(--color-accent);` : `color: var(--color-text-muted);`}
+    >
+      Análisis
+    </a>
+
+    <a
+      href="/ia"
+      class={`block px-3 py-2 text-sm rounded ${isActive('/ia') ? 'font-semibold' : ''}`}
+      style={isActive('/ia') ? `background-color: var(--color-surface-hover); color: var(--color-accent);` : `color: var(--color-text-muted);`}
+    >
+      IA / Claude
+    </a>
+
+    <a
+      href="/reportes"
+      class={`block px-3 py-2 text-sm rounded ${isActive('/reportes') ? 'font-semibold' : ''}`}
+      style={isActive('/reportes') ? `background-color: var(--color-surface-hover); color: var(--color-accent);` : `color: var(--color-text-muted);`}
+    >
+      Reportes
+    </a>
+
+    {[...grouped.entries()].map(([category, companyGroups]) => (
+      <div>
+        <div class="px-3 py-1 text-xs font-semibold uppercase tracking-wider flex items-center gap-2" style="color: var(--color-text-muted);">
+          <span class="w-2 h-2 rounded-full inline-block" style={`background-color: ${category.color};`}></span>
+          {category.label}
+        </div>
+        {companyGroups.map(group => (
+          <div>
+            {group.company && (
+              <div class="px-3 py-0.5 text-xs italic" style="color: var(--color-text-muted); opacity: 0.7;">
+                {group.company}
+              </div>
+            )}
+            {group.projects.map(project => {
+              const href = `/proyecto/${project.id}`;
+              const active = isActive(href);
+              return (
+                <a
+                  href={href}
+                  class={`block px-3 py-1.5 text-sm rounded truncate ${active ? 'font-semibold' : ''}`}
+                  style={active
+                    ? `background-color: var(--color-surface-hover); color: var(--color-accent);`
+                    : `color: var(--color-text-muted);`}
+                  title={project.name}
+                >
+                  <span class="inline-block w-1.5 h-1.5 rounded-full mr-2" style={`background-color: ${project.tabColor || category.color};`}></span>
+                  {project.name}
+                </a>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    ))}
+  </nav>
+</aside>

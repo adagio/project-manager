@@ -1,0 +1,171 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import PageHeader from '@/components/PageHeader.astro';
+import ClaudeDailyChart from '@/components/charts/ClaudeDailyChart.astro';
+import ClaudeByProjectChart from '@/components/charts/ClaudeByProjectChart.astro';
+import { getRegistry } from '@/lib/projects';
+import { getClaudeGlobalSummary, getClaudeSessions } from '@/lib/claude-client';
+import { formatRelativeDate } from '@/lib/date-utils';
+
+const registry = getRegistry();
+const summary = getClaudeGlobalSummary(registry.projects);
+
+// Build color map for chart
+const colorMap: Record<string, string> = {};
+for (const p of registry.projects) {
+  colorMap[p.id] = p.tabColor || '#94a3b8';
+}
+
+// Get recent sessions across all projects (for the table)
+const allSessions: { projectName: string; projectId: string; sessionId: string; promptCount: number; firstPrompt: number; lastPrompt: number }[] = [];
+for (const p of registry.projects) {
+  const sessions = getClaudeSessions(p);
+  for (const s of sessions) {
+    allSessions.push({
+      projectName: p.name,
+      projectId: p.id,
+      ...s,
+    });
+  }
+}
+allSessions.sort((a, b) => b.lastPrompt - a.lastPrompt);
+const recentSessions = allSessions.slice(0, 20);
+
+function formatSessionDuration(first: number, last: number): string {
+  const diffMs = last - first;
+  if (diffMs < 60_000) return '<1m';
+  if (diffMs < 3600_000) return `${Math.round(diffMs / 60_000)}m`;
+  const h = Math.floor(diffMs / 3600_000);
+  const m = Math.round((diffMs % 3600_000) / 60_000);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+---
+
+<Layout title="IA / Claude Code — Gestor de Proyectos">
+  <PageHeader title="IA / Claude Code" subtitle={`${summary.totalPrompts} prompts en total`} />
+
+  <div class="p-6 space-y-6">
+    <!-- Summary cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        <div class="text-2xl font-bold">{summary.totalPrompts.toLocaleString()}</div>
+        <div class="text-xs" style="color: var(--color-text-muted);">Total prompts</div>
+      </div>
+      <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        <div class="text-2xl font-bold">{summary.totalSessions.toLocaleString()}</div>
+        <div class="text-xs" style="color: var(--color-text-muted);">Total sesiones</div>
+      </div>
+      <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        {summary.mostActiveProject ? (
+          <>
+            <div class="text-2xl font-bold" style="color: var(--color-accent);">{summary.mostActiveProject.promptCount}</div>
+            <div class="text-xs" style="color: var(--color-text-muted);">{summary.mostActiveProject.name}</div>
+          </>
+        ) : (
+          <>
+            <div class="text-2xl font-bold">-</div>
+            <div class="text-xs" style="color: var(--color-text-muted);">Proyecto mas activo</div>
+          </>
+        )}
+      </div>
+      <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        <div class="text-2xl font-bold" style="color: var(--color-text-muted);">{summary.unregisteredPrompts.toLocaleString()}</div>
+        <div class="text-xs" style="color: var(--color-text-muted);">No registrados</div>
+      </div>
+    </div>
+
+    <!-- Daily activity chart -->
+    <ClaudeDailyChart activity={summary.dailyActivity} />
+
+    <!-- By project chart -->
+    {summary.byProject.length > 0 && (
+      <ClaudeByProjectChart data={summary.byProject} colors={colorMap} />
+    )}
+
+    <!-- Recent sessions table -->
+    <div class="rounded-lg border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+      <div class="px-4 py-3 border-b" style="border-color: var(--color-border);">
+        <h2 class="text-sm font-semibold">Sesiones recientes</h2>
+      </div>
+
+      {recentSessions.length === 0 ? (
+        <div class="px-4 py-8 text-center text-sm" style="color: var(--color-text-muted);">
+          Sin sesiones registradas
+        </div>
+      ) : (
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b" style="border-color: var(--color-border);">
+                <th class="text-left px-4 py-2 text-xs font-medium" style="color: var(--color-text-muted);">Proyecto</th>
+                <th class="text-right px-4 py-2 text-xs font-medium" style="color: var(--color-text-muted);">Prompts</th>
+                <th class="text-right px-4 py-2 text-xs font-medium" style="color: var(--color-text-muted);">Inicio</th>
+                <th class="text-right px-4 py-2 text-xs font-medium" style="color: var(--color-text-muted);">Duracion</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentSessions.map(session => (
+                <tr class="border-b last:border-b-0 hover:bg-opacity-50" style="border-color: var(--color-border);">
+                  <td class="px-4 py-2">
+                    <a href={`/proyecto/${session.projectId}`} class="hover:underline" style="color: var(--color-accent);">
+                      {session.projectName}
+                    </a>
+                  </td>
+                  <td class="px-4 py-2 text-right" style="color: var(--color-text-muted);">
+                    {session.promptCount}
+                  </td>
+                  <td class="px-4 py-2 text-right" style="color: var(--color-text-muted);">
+                    {formatRelativeDate(new Date(session.firstPrompt).toISOString())}
+                  </td>
+                  <td class="px-4 py-2 text-right" style="font-family: 'Cascadia Code', monospace; color: var(--color-text-muted);">
+                    {formatSessionDuration(session.firstPrompt, session.lastPrompt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+
+    <!-- Per-project breakdown table -->
+    {summary.byProject.length > 0 && (
+      <div class="rounded-lg border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        <div class="px-4 py-3 border-b" style="border-color: var(--color-border);">
+          <h2 class="text-sm font-semibold">Resumen por proyecto</h2>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b" style="border-color: var(--color-border);">
+                <th class="text-left px-4 py-2 text-xs font-medium" style="color: var(--color-text-muted);">Proyecto</th>
+                <th class="text-right px-4 py-2 text-xs font-medium" style="color: var(--color-text-muted);">Prompts</th>
+                <th class="text-right px-4 py-2 text-xs font-medium" style="color: var(--color-text-muted);">Sesiones</th>
+                <th class="text-right px-4 py-2 text-xs font-medium" style="color: var(--color-text-muted);">Ultima actividad</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.byProject.map(proj => (
+                <tr class="border-b last:border-b-0" style="border-color: var(--color-border);">
+                  <td class="px-4 py-2">
+                    <a href={`/proyecto/${proj.projectId}`} class="hover:underline" style="color: var(--color-accent);">
+                      <span class="inline-block w-2 h-2 rounded-full mr-2" style={`background-color: ${colorMap[proj.projectId] || '#94a3b8'};`}></span>
+                      {proj.projectName}
+                    </a>
+                  </td>
+                  <td class="px-4 py-2 text-right font-semibold">{proj.promptCount}</td>
+                  <td class="px-4 py-2 text-right" style="color: var(--color-text-muted);">{proj.sessionCount}</td>
+                  <td class="px-4 py-2 text-right" style="color: var(--color-text-muted);">
+                    {formatRelativeDate(new Date(proj.lastActivity).toISOString())}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    )}
+  </div>
+</Layout>

@@ -1,0 +1,38 @@
+---
+import type { HistoryEntry } from '@/lib/types';
+
+interface Props {
+  entries: HistoryEntry[];
+  totalCount: number;
+}
+
+const { entries, totalCount } = Astro.props;
+---
+
+<div class="rounded-lg border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color: var(--color-border);">
+    <h2 class="text-sm font-semibold">Historial de Terminal</h2>
+    <span class="text-xs px-2 py-0.5 rounded-full" style="background-color: var(--color-surface-hover); color: var(--color-text-muted);">
+      {totalCount} comandos
+    </span>
+  </div>
+
+  {entries.length === 0 ? (
+    <div class="px-4 py-8 text-center text-sm" style="color: var(--color-text-muted);">
+      Sin historial disponible
+    </div>
+  ) : (
+    <div class="p-2 max-h-96 overflow-y-auto">
+      {entries.map(entry => (
+        <div class="flex gap-2 px-2 py-1 rounded hover:bg-opacity-50" style="font-family: 'Cascadia Code', 'Fira Code', monospace;">
+          <span class="text-xs shrink-0 w-8 text-right" style="color: var(--color-text-muted); opacity: 0.5;">
+            {entry.lineNumber}
+          </span>
+          <span class="text-xs truncate" style="color: var(--color-accent-hover);">
+            {entry.command}
+          </span>
+        </div>
+      ))}
+    </div>
+  )}
+</div>

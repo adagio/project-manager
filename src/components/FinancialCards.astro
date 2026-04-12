@@ -1,0 +1,31 @@
+---
+interface Props {
+  totalYTD: number;
+  totalPending: number;
+  monthlyAvg: number;
+  projectedAnnual: number;
+  currency: string;
+}
+
+const { totalYTD, totalPending, monthlyAvg, projectedAnnual, currency } = Astro.props;
+const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
+---
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+  <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+    <div class="text-2xl font-bold" style="color: var(--color-success);">{fmt(totalYTD)}</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">Ingresos YTD</div>
+  </div>
+  <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+    <div class="text-2xl font-bold" style={totalPending > 0 ? 'color: var(--color-warning);' : 'color: var(--color-text-muted);'}>{fmt(totalPending)}</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">Pendiente</div>
+  </div>
+  <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+    <div class="text-2xl font-bold">{fmt(monthlyAvg)}</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">Promedio mensual</div>
+  </div>
+  <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+    <div class="text-2xl font-bold" style="color: var(--color-accent);">{fmt(projectedAnnual)}</div>
+    <div class="text-xs" style="color: var(--color-text-muted);">Proyecci&oacute;n anual</div>
+  </div>
+</div>

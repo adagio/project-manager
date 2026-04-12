@@ -1,0 +1,120 @@
+---
+interface ProjectActivity {
+  projectName: string;
+  color: string;
+  activity: Record<string, number>; // date -> count
+}
+
+interface Props {
+  data: ProjectActivity[];
+  days?: number;
+}
+
+const { data, days = 30 } = Astro.props;
+
+// Generate date labels for last N days
+const dates: string[] = [];
+const today = new Date();
+for (let i = days - 1; i >= 0; i--) {
+  const d = new Date(today);
+  d.setDate(d.getDate() - i);
+  dates.push(d.toISOString().split('T')[0]);
+}
+
+const formatLabel = (dateStr: string) => {
+  const [, m, d] = dateStr.split('-');
+  return `${d}/${m}`;
+};
+
+const labels = dates.map(formatLabel);
+
+// Build datasets for Chart.js
+const datasets = data.map(project => ({
+  label: project.projectName,
+  data: dates.map(date => project.activity[date] || 0),
+  backgroundColor: project.color,
+  borderRadius: 2,
+}));
+
+const chartData = JSON.stringify({ labels, datasets });
+---
+
+<div class="rounded-lg border p-4" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <h2 class="text-sm font-semibold mb-3">Actividad de commits — últimos {days} días</h2>
+  <div style="height: 180px;">
+    <canvas id="combined-activity-chart"></canvas>
+  </div>
+</div>
+
+<script is:inline define:vars={{ chartData }}>
+  import('https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js').then((module) => {
+    const Chart = module.default || module.Chart || window.Chart;
+    const ctx = document.getElementById('combined-activity-chart');
+    if (!ctx) return;
+
+    const data = JSON.parse(chartData);
+
+    new Chart(ctx, {
+      type: 'bar',
+      data: data,
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            stacked: true,
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 9 },
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 15,
+            },
+            grid: { display: false },
+          },
+          y: {
+            stacked: true,
+            beginAtZero: true,
+            ticks: {
+              color: '#94a3b8',
+              font: { size: 10 },
+              stepSize: 1,
+            },
+            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+          },
+        },
+        plugins: {
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: {
+              color: '#94a3b8',
+              font: { size: 11 },
+              boxWidth: 12,
+              boxHeight: 12,
+              padding: 12,
+            },
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            backgroundColor: '#1e293b',
+            titleColor: '#f1f5f9',
+            bodyColor: '#94a3b8',
+            borderColor: '#334155',
+            borderWidth: 1,
+            callbacks: {
+              title: function(items) {
+                return items[0]?.label || '';
+              },
+              label: function(item) {
+                if (item.raw === 0) return null;
+                return item.dataset.label + ': ' + item.raw + ' commit' + (item.raw !== 1 ? 's' : '');
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+</script>

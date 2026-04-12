@@ -1,0 +1,126 @@
+---
+import type { Project } from '@/lib/types';
+import { formatDuration } from '@/lib/date-utils';
+import { db } from '@/lib/db/index';
+import { invoices } from '@/lib/db/schema';
+import { eq, desc } from 'drizzle-orm';
+
+interface Props {
+  project: Project;
+  rate: number;
+  currency: string;
+}
+
+const { project, rate, currency } = Astro.props;
+
+const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(n);
+
+const pastEntries = db.select().from(invoices)
+  .where(eq(invoices.projectId, project.id))
+  .orderBy(desc(invoices.date))
+  .all();
+
+const now = new Date();
+const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+const montoLabel = `Monto total (${currency})`;
+
+// Pre-process entries for template
+const processedEntries = pastEntries.map(entry => {
+  const parsed = entry.notes ? JSON.parse(entry.notes) : {};
+  const hours = parsed.hours || 0;
+  const effRate = hours > 0 ? entry.amount / hours : 0;
+  const statusMap: Record<string, [string, string]> = {
+    paid: ['var(--color-success)', 'Cobrado'],
+    sent: ['var(--color-warning)', 'Enviado'],
+    draft: ['var(--color-text-muted)', 'Borrador'],
+    overdue: ['var(--color-danger)', 'Vencido'],
+  };
+  const [stColor, stLabel] = statusMap[entry.status] || statusMap.draft;
+  return {
+    date: entry.date,
+    hours,
+    amount: fmt(entry.amount),
+    effRate: effRate > 0 ? fmt(effRate) + '/hr' : '-',
+    hoursLabel: hours > 0 ? formatDuration(hours * 3600) : '-',
+    stColor,
+    stLabel,
+  };
+});
+---
+
+<div class="rounded-lg border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <div class="px-4 py-3 border-b" style="border-color: var(--color-border);">
+    <h2 class="text-sm font-semibold">Registro mensual de horas</h2>
+  </div>
+
+  <div class="p-4">
+    <form method="POST" action="/api/monthly-entry" class="flex flex-wrap items-end gap-3 mb-4">
+      <input type="hidden" name="projectId" value={project.id} />
+      <input type="hidden" name="rate" value={String(rate)} />
+      <input type="hidden" name="currency" value={currency} />
+
+      <div>
+        <label class="block text-xs mb-1" style="color: var(--color-text-muted);">Mes</label>
+        <input type="month" name="month" value={currentMonth} required
+          class="px-3 py-1.5 text-sm rounded"
+          style="background-color: var(--color-surface-hover); color: var(--color-text); border: 1px solid var(--color-border);" />
+      </div>
+
+      <div>
+        <label class="block text-xs mb-1" style="color: var(--color-text-muted);">Horas</label>
+        <input type="number" name="hours" step="0.5" min="0" placeholder="160" required
+          class="w-24 px-3 py-1.5 text-sm rounded"
+          style="background-color: var(--color-surface-hover); color: var(--color-text); border: 1px solid var(--color-border);" />
+      </div>
+
+      <div>
+        <label class="block text-xs mb-1" style="color: var(--color-text-muted);">{montoLabel}</label>
+        <input type="number" name="amount" step="0.01" min="0" placeholder="5600" required
+          class="w-32 px-3 py-1.5 text-sm rounded"
+          style="background-color: var(--color-surface-hover); color: var(--color-text); border: 1px solid var(--color-border);" />
+      </div>
+
+      <div>
+        <label class="block text-xs mb-1" style="color: var(--color-text-muted);">Estado</label>
+        <select name="status" class="px-3 py-1.5 text-sm rounded"
+          style="background-color: var(--color-surface-hover); color: var(--color-text); border: 1px solid var(--color-border);">
+          <option value="paid">Cobrado</option>
+          <option value="sent">Enviado</option>
+          <option value="draft">Borrador</option>
+        </select>
+      </div>
+
+      <button type="submit" class="px-4 py-1.5 text-sm rounded font-medium transition-colors"
+        style="background-color: var(--color-accent); color: var(--color-bg);">
+        Registrar
+      </button>
+    </form>
+
+    {processedEntries.length > 0 && (
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b" style="border-color: var(--color-border);">
+            <th class="text-left py-2 font-medium" style="color: var(--color-text-muted);">Mes</th>
+            <th class="text-right py-2 font-medium" style="color: var(--color-text-muted);">Horas</th>
+            <th class="text-right py-2 font-medium" style="color: var(--color-text-muted);">Monto</th>
+            <th class="text-right py-2 font-medium" style="color: var(--color-text-muted);">Rate eff.</th>
+            <th class="text-right py-2 font-medium" style="color: var(--color-text-muted);">Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {processedEntries.map(e => (
+            <tr class="border-b" style="border-color: var(--color-border);">
+              <td class="py-1.5">{e.date}</td>
+              <td class="text-right py-1.5 font-mono text-xs" style="color: var(--color-text-muted);">{e.hoursLabel}</td>
+              <td class="text-right py-1.5 font-mono">{e.amount}</td>
+              <td class="text-right py-1.5 font-mono text-xs" style="color: var(--color-text-muted);">{e.effRate}</td>
+              <td class="text-right py-1.5">
+                <span class="text-xs" style={`color: ${e.stColor};`}>{e.stLabel}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    )}
+  </div>
+</div>

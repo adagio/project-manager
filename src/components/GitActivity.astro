@@ -1,0 +1,38 @@
+---
+import type { GitCommit } from '@/lib/types';
+import { formatRelativeDate } from '@/lib/date-utils';
+
+interface Props {
+  commits: GitCommit[];
+}
+
+const { commits } = Astro.props;
+---
+
+<div class="rounded-lg border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <div class="px-4 py-3 border-b" style="border-color: var(--color-border);">
+    <h2 class="text-sm font-semibold">Commits recientes</h2>
+  </div>
+
+  {commits.length === 0 ? (
+    <div class="px-4 py-8 text-center text-sm" style="color: var(--color-text-muted);">
+      No hay commits disponibles
+    </div>
+  ) : (
+    <div class="divide-y" style="--tw-divide-opacity: 1; border-color: var(--color-border);">
+      {commits.map(commit => (
+        <div class="px-4 py-2.5 flex items-start gap-3" style="border-color: var(--color-border);">
+          <code class="text-xs shrink-0 mt-0.5 px-1.5 py-0.5 rounded" style="background-color: var(--color-surface-hover); color: var(--color-accent);">
+            {commit.hash}
+          </code>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm truncate">{commit.message}</p>
+            <p class="text-xs mt-0.5" style="color: var(--color-text-muted);">
+              {commit.author} &middot; {formatRelativeDate(commit.date)}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  )}
+</div>

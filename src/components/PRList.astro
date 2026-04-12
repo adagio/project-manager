@@ -1,0 +1,66 @@
+---
+import type { PR } from '@/lib/pr-client';
+import { formatRelativeDate } from '@/lib/date-utils';
+
+interface Props {
+  prs: PR[];
+}
+
+const { prs } = Astro.props;
+
+const stateStyles: Record<string, { bg: string; text: string; label: string }> = {
+  open: { bg: 'rgba(34, 197, 94, 0.15)', text: '#22c55e', label: 'Abierto' },
+  merged: { bg: 'rgba(139, 92, 246, 0.15)', text: '#8b5cf6', label: 'Merged' },
+  closed: { bg: 'rgba(239, 68, 68, 0.15)', text: '#ef4444', label: 'Cerrado' },
+};
+
+const openCount = prs.filter(p => p.state === 'open').length;
+const mergedCount = prs.filter(p => p.state === 'merged').length;
+---
+
+<div class="rounded-lg border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color: var(--color-border);">
+    <h2 class="text-sm font-semibold">Pull Requests</h2>
+    <div class="flex gap-3 text-xs" style="color: var(--color-text-muted);">
+      <span><span style="color: #22c55e;" class="font-semibold">{openCount}</span> abiertos</span>
+      <span><span style="color: #8b5cf6;" class="font-semibold">{mergedCount}</span> merged</span>
+    </div>
+  </div>
+
+  {prs.length === 0 ? (
+    <div class="px-4 py-8 text-center text-sm" style="color: var(--color-text-muted);">
+      Sin PRs disponibles
+    </div>
+  ) : (
+    <div class="divide-y" style="border-color: var(--color-border);">
+      {prs.map(pr => {
+        const style = stateStyles[pr.state] || stateStyles.closed;
+        return (
+          <div class="px-4 py-2 flex items-start gap-3" style="border-color: var(--color-border);">
+            <span class="text-xs font-mono shrink-0 mt-0.5 px-1.5 py-0.5 rounded"
+              style={`background-color: ${style.bg}; color: ${style.text};`}>
+              {pr.number}
+            </span>
+            <div class="flex-1 min-w-0">
+              {pr.url ? (
+                <a href={pr.url} target="_blank" rel="noopener" class="text-sm truncate block hover:underline" style="color: var(--color-text);">
+                  {pr.title}
+                </a>
+              ) : (
+                <span class="text-sm truncate block">{pr.title}</span>
+              )}
+              <div class="text-xs mt-0.5 flex items-center gap-2" style="color: var(--color-text-muted);">
+                <span>{pr.branch}</span>
+                <span>{formatRelativeDate(pr.date)}</span>
+              </div>
+            </div>
+            <span class="text-[10px] px-1.5 py-0.5 rounded shrink-0"
+              style={`background-color: ${style.bg}; color: ${style.text};`}>
+              {style.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>

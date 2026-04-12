@@ -1,0 +1,48 @@
+---
+import type { ClaudePrompt } from '@/lib/types';
+import { formatRelativeDate } from '@/lib/date-utils';
+
+interface Props {
+  prompts: ClaudePrompt[];
+  totalCount: number;
+  sessionCount: number;
+}
+
+const { prompts, totalCount, sessionCount } = Astro.props;
+---
+
+<div class="rounded-lg border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <div class="px-4 py-3 border-b flex items-center justify-between" style="border-color: var(--color-border);">
+    <h2 class="text-sm font-semibold">Claude Code</h2>
+    <div class="flex gap-2">
+      <span class="text-xs px-2 py-0.5 rounded-full" style="background-color: var(--color-surface-hover); color: var(--color-text-muted);">
+        {totalCount} prompts
+      </span>
+      <span class="text-xs px-2 py-0.5 rounded-full" style="background-color: var(--color-surface-hover); color: var(--color-text-muted);">
+        {sessionCount} sesiones
+      </span>
+    </div>
+  </div>
+
+  {prompts.length === 0 ? (
+    <div class="px-4 py-8 text-center text-sm" style="color: var(--color-text-muted);">
+      Sin actividad de Claude Code
+    </div>
+  ) : (
+    <div class="p-2 max-h-96 overflow-y-auto">
+      {prompts.map(entry => (
+        <div class="flex gap-2 px-2 py-1.5 rounded hover:bg-opacity-50 items-start" style="font-family: 'Cascadia Code', 'Fira Code', monospace;">
+          <span class="text-xs shrink-0 w-16 text-right" style="color: var(--color-text-muted); opacity: 0.5;">
+            {formatRelativeDate(new Date(entry.timestamp).toISOString())}
+          </span>
+          <span class="text-xs truncate flex-1" style="color: var(--color-accent-hover);">
+            {entry.display}
+          </span>
+          <span class="text-xs shrink-0" style="color: var(--color-text-muted); opacity: 0.35;">
+            {entry.sessionId.slice(0, 8)}
+          </span>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
