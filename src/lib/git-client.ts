@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { GitCommit, GitStatus, Project } from './types';
@@ -15,6 +15,81 @@ const activityCache = new TTLCache<Map<string, number>>(60 * 1000); // 60s — h
 
 function gitExec(cmd: string, cwd: string): string {
   return execSync(cmd, { ...EXEC_OPTS, cwd }).trim();
+}
+
+let projectLabelWidth = 12;
+
+function logWithPrefix(projectId: string, raw: string, stream: 'stdout' | 'stderr') {
+  if (!raw) return;
+  const label = `[${projectId}]`.padEnd(projectLabelWidth + 2);
+  const target = stream === 'stderr' ? console.error : console.log;
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.replace(/\s+$/, '');
+    if (trimmed) target(`${label} ${trimmed}`);
+  }
+}
+
+/**
+ * Async, non-blocking. Streams stdout/stderr line-by-line through the
+ * project-prefixed logger and resolves with the collected output + exit code.
+ */
+function runVerboseAsync(cmd: string, projectId: string, cwd: string | undefined, timeout: number): Promise<{ stdout: string; stderr: string; code: number | null }> {
+  if (projectId.length + 2 > projectLabelWidth) projectLabelWidth = projectId.length;
+  return new Promise((resolveOuter) => {
+    const child = spawn(cmd, { shell: true, cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const stdoutChunks: string[] = [];
+    const stderrChunks: string[] = [];
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try { child.kill(); } catch { /* ignore */ }
+    }, timeout);
+
+    child.stdout.setEncoding('utf-8');
+    child.stderr.setEncoding('utf-8');
+    child.stdout.on('data', (chunk: string) => {
+      stdoutChunks.push(chunk);
+      logWithPrefix(projectId, chunk, 'stdout');
+    });
+    child.stderr.on('data', (chunk: string) => {
+      stderrChunks.push(chunk);
+      logWithPrefix(projectId, chunk, 'stderr');
+    });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolveOuter({
+        stdout: stdoutChunks.join(''),
+        stderr: stderrChunks.join(''),
+        code: timedOut ? null : code,
+      });
+    });
+    child.on('error', (err) => {
+      clearTimeout(timer);
+      logWithPrefix(projectId, String(err.message || err), 'stderr');
+      resolveOuter({ stdout: stdoutChunks.join(''), stderr: stderrChunks.join(''), code: null });
+    });
+  });
+}
+
+async function gitExecVerboseAsync(cmd: string, cwd: string, projectId: string, timeout = EXEC_OPTS.timeout): Promise<string> {
+  const { stdout, stderr, code } = await runVerboseAsync(cmd, projectId, cwd, timeout);
+  if (code !== 0) {
+    const err = new Error(`git command failed (status ${code}): ${cmd}\n${stderr}`);
+    (err as any).stdout = stdout;
+    (err as any).stderr = stderr;
+    throw err;
+  }
+  return stdout.trim();
+}
+
+async function gitCloneVerboseAsync(repoUrl: string, dest: string, projectId: string, branch: string | undefined, timeout = 120000): Promise<void> {
+  const cmd = branch
+    ? `git clone --branch ${branch} --single-branch "${repoUrl}" "${dest}"`
+    : `git clone "${repoUrl}" "${dest}"`;
+  const { stderr, code } = await runVerboseAsync(cmd, projectId, undefined, timeout);
+  if (code !== 0) {
+    throw new Error(`git clone failed (status ${code}): ${stderr}`);
+  }
 }
 
 if (!existsSync(REPOS_DIR)) {
@@ -64,6 +139,99 @@ export function getRepoPath(project: Project): string | null {
   }
 
   return repoDir;
+}
+
+/**
+ * Non-blocking variant: returns the local repo path if it already exists.
+ * Never clones, never pulls. Use this on render paths so requests stay fast;
+ * call kickoffRepoRefresh() separately to update repos in the background.
+ */
+export function getRepoPathCached(project: Project): string | null {
+  if (!project.repoUrl) return null;
+  const repoDir = join(REPOS_DIR, project.id);
+  return existsSync(join(repoDir, '.git')) ? repoDir : null;
+}
+
+// ---- Background repo refresh -------------------------------------------------
+
+let refreshPromise: Promise<void> | null = null;
+let refreshStartedAt: number | null = null;
+let lastRefreshAt: number | null = null;
+const REFRESH_DEBOUNCE_MS = 60 * 1000;
+
+async function refreshOne(project: Project): Promise<void> {
+  if (!project.repoUrl) return;
+  const repoDir = join(REPOS_DIR, project.id);
+  const baseBranch = project.baseBranch || 'main';
+
+  if (!existsSync(join(repoDir, '.git'))) {
+    try {
+      await gitCloneVerboseAsync(project.repoUrl, repoDir, project.id, baseBranch);
+    } catch {
+      try {
+        await gitCloneVerboseAsync(project.repoUrl, repoDir, project.id, undefined);
+        try { await gitExecVerboseAsync(`git checkout ${baseBranch}`, repoDir, project.id); } catch { /* stay on default */ }
+      } catch {
+        return;
+      }
+    }
+    pullCache.set(project.id, repoDir);
+    return;
+  }
+
+  if (!pullCache.has(project.id)) {
+    try {
+      await gitExecVerboseAsync(`git checkout ${baseBranch}`, repoDir, project.id);
+      await gitExecVerboseAsync('git pull --ff-only', repoDir, project.id);
+    } catch {
+      try { await gitExecVerboseAsync('git fetch', repoDir, project.id); } catch { /* offline */ }
+    }
+    pullCache.set(project.id, repoDir);
+  }
+}
+
+async function runRefresh(projects: Project[], concurrency = 2): Promise<void> {
+  const queue = [...projects];
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (queue.length > 0) {
+      const p = queue.shift();
+      if (!p) break;
+      try { await refreshOne(p); } catch { /* swallow per-project errors */ }
+    }
+  });
+  await Promise.all(workers);
+}
+
+/**
+ * Fire-and-forget: starts a background refresh of all repos if none is running
+ * and the last refresh completed more than REFRESH_DEBOUNCE_MS ago.
+ */
+export function kickoffRepoRefresh(projects: Project[]): void {
+  if (refreshPromise) return;
+  const now = Date.now();
+  if (lastRefreshAt && now - lastRefreshAt < REFRESH_DEBOUNCE_MS) return;
+  refreshStartedAt = now;
+  refreshPromise = runRefresh(projects).finally(() => {
+    lastRefreshAt = Date.now();
+    refreshStartedAt = null;
+    refreshPromise = null;
+    // Invalidate per-render caches so the next render sees fresh data
+    statusCache.clear?.();
+    commitsCache.clear?.();
+    activityCache.clear?.();
+  });
+}
+
+export function isRefreshing(): boolean {
+  return refreshPromise !== null;
+}
+
+export function getLastRefreshAt(): number | null {
+  return lastRefreshAt;
+}
+
+export function getRefreshStartedAt(): number | null {
+  return refreshStartedAt;
 }
 
 export function isGitRepo(path: string): boolean {
