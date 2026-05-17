@@ -49,6 +49,14 @@ const isActive = (href: string) => decodeURIComponent(currentPage) === href;
       Reportes
     </a>
 
+    <a
+      href="/tareas"
+      class={`block px-3 py-2 text-sm rounded ${isActive('/tareas') || currentPage.startsWith('/tareas') ? 'font-semibold' : ''}`}
+      style={isActive('/tareas') || currentPage.startsWith('/tareas') ? `background-color: var(--color-surface-hover); color: var(--color-accent);` : `color: var(--color-text-muted);`}
+    >
+      Tareas
+    </a>
+
     {[...grouped.entries()].map(([category, companyGroups]) => (
       <div>
         <div class="px-3 py-1 text-xs font-semibold uppercase tracking-wider flex items-center gap-2" style="color: var(--color-text-muted);">

@@ -1,0 +1,48 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import PageHeader from '@/components/PageHeader.astro';
+import TaskForm from '@/components/tasks/TaskForm.astro';
+import { getProjects, getProject } from '@/lib/projects';
+import { getTask, TASK_STATUS_LABELS, type TaskStatus } from '@/lib/data/tasks';
+
+const { id } = Astro.params;
+
+const task = id ? await getTask(id) : null;
+if (!task) {
+  return Astro.redirect('/tareas');
+}
+
+const projects = getProjects();
+const project = getProject(task.projectId);
+const statusLabel = TASK_STATUS_LABELS[task.status as TaskStatus] ?? task.status;
+---
+
+<Layout title={`${task.title} — Tareas`}>
+  <PageHeader title="Editar tarea" subtitle={project ? `${project.name} · ${statusLabel}` : statusLabel}>
+    <a
+      href="/tareas"
+      class="px-3 py-1.5 text-sm rounded font-medium"
+      style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);"
+    >
+      ← Volver
+    </a>
+  </PageHeader>
+
+  <div class="p-6 max-w-3xl space-y-4">
+    <TaskForm projects={projects} task={task} />
+
+    <form method="POST" action="/api/tasks/delete" class="pt-2">
+      <input type="hidden" name="id" value={task.id} />
+      <button
+        type="submit"
+        onclick="return confirm('¿Borrar esta tarea?');"
+        class="text-xs px-3 py-1.5 rounded"
+        style="color: var(--color-danger); border: 1px solid var(--color-danger); background-color: transparent;"
+      >
+        Borrar tarea
+      </button>
+    </form>
+  </div>
+</Layout>

@@ -1,0 +1,115 @@
+---
+import type { Project } from '@/lib/types';
+import {
+  parseTags,
+  formatEstimate,
+  isOverdue,
+  nextStatus,
+  prevStatus,
+  TASK_STATUS_COLORS,
+  TASK_STATUS_LABELS,
+  type Task,
+  type TaskStatus,
+} from '@/lib/data/tasks';
+
+interface Props {
+  task: Task;
+  project?: Project | null;
+}
+
+const { task, project = null } = Astro.props;
+
+const status = task.status as TaskStatus;
+const tags = parseTags(task.tags);
+const estimate = formatEstimate(task.estimateHours);
+const overdue = isOverdue(task.dueDate);
+const next = nextStatus(status);
+const prev = prevStatus(status);
+
+const dueColor = overdue ? 'var(--color-danger)' : 'var(--color-text-muted)';
+const projectColor = project?.tabColor || '#94a3b8';
+const statusColor = TASK_STATUS_COLORS[status];
+---
+
+<article
+  class="rounded border p-3 space-y-2"
+  style={`background-color: var(--color-surface); border-color: var(--color-border); border-left: 3px solid ${statusColor};`}
+>
+  <div class="flex items-start justify-between gap-2">
+    <a
+      href={`/tareas/${task.id}`}
+      class="text-sm font-medium leading-snug hover:underline"
+      style="color: var(--color-text);"
+      title="Editar tarea"
+    >{task.title}</a>
+    <form method="POST" action="/api/tasks/delete" class="shrink-0">
+      <input type="hidden" name="id" value={task.id} />
+      <button
+        type="submit"
+        title="Borrar"
+        class="text-xs leading-none px-1 py-0.5 rounded transition-colors hover:opacity-100"
+        style="color: var(--color-text-muted); opacity: 0.5;"
+      >×</button>
+    </form>
+  </div>
+
+  {task.description && (
+    <p class="text-xs whitespace-pre-wrap" style="color: var(--color-text-muted);">
+      {task.description}
+    </p>
+  )}
+
+  {project && (
+    <div class="flex items-center gap-1.5 text-xs">
+      <span class="inline-block w-1.5 h-1.5 rounded-full" style={`background-color: ${projectColor};`}></span>
+      <span style="color: var(--color-text-muted);">{project.name}</span>
+    </div>
+  )}
+
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style="color: var(--color-text-muted);">
+    {task.dueDate && (
+      <span style={`color: ${dueColor};`} title={overdue ? 'Vencida' : 'Due date'}>
+        📅 {task.dueDate}
+      </span>
+    )}
+    {estimate && <span title="Estimate">⏱ {estimate}</span>}
+  </div>
+
+  {tags.length > 0 && (
+    <div class="flex flex-wrap gap-1">
+      {tags.map((tag) => (
+        <span
+          class="text-[10px] px-1.5 py-0.5 rounded"
+          style="background-color: var(--color-surface-hover); color: var(--color-text-muted);"
+        >{tag}</span>
+      ))}
+    </div>
+  )}
+
+  <div class="flex items-center justify-between gap-1 pt-1 border-t" style="border-color: var(--color-border);">
+    <form method="POST" action="/api/tasks/status" class="contents">
+      <input type="hidden" name="id" value={task.id} />
+      {prev ? (
+        <button
+          type="submit"
+          name="status"
+          value={prev}
+          title={`Mover a ${TASK_STATUS_LABELS[prev]}`}
+          class="text-xs px-2 py-0.5 rounded transition-colors"
+          style="color: var(--color-text-muted); background-color: var(--color-surface-hover);"
+        >←</button>
+      ) : <span></span>}
+
+      {next ? (
+        <button
+          type="submit"
+          name="status"
+          value={next}
+          title={`Mover a ${TASK_STATUS_LABELS[next]}`}
+          class="text-xs px-2 py-0.5 rounded transition-colors"
+          style="color: var(--color-text-muted); background-color: var(--color-surface-hover);"
+        >→</button>
+      ) : <span></span>}
+    </form>
+  </div>
+</article>

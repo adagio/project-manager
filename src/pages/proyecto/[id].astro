@@ -21,6 +21,9 @@ import { isAWAvailable, getDailyTimeByProject, getTimeByProject } from '@/lib/aw
 import { getDateRange, type RangeKey } from '@/lib/date-utils';
 import { getEffectiveRate, getCurrency } from '@/lib/data/settings';
 import { getInvoiceSummary } from '@/lib/data/invoices';
+import { listTasks } from '@/lib/data/tasks';
+import TaskForm from '@/components/tasks/TaskForm.astro';
+import TaskList from '@/components/tasks/TaskList.astro';
 import { db } from '@/lib/db/index';
 import { projectConfig, fixedPayments } from '@/lib/db/schema';
 import { eq, and, lte, or, isNull } from 'drizzle-orm';
@@ -88,6 +91,9 @@ const claudeSessions = claudeAvailable ? getClaudeSessions(project) : [];
 
 // PRs
 const prs = getPRs(project, 15);
+
+// Tasks for this project
+const projectTasks = await listTasks({ projectId: project.id });
 
 // Financial data
 const [config] = await db.select().from(projectConfig).where(eq(projectConfig.projectId, project.id)).limit(1);
@@ -186,6 +192,30 @@ const statusText = !gitStatus.isRepo
     {(paymentType === 'hourly' || paymentType === 'mixed') && (
       <MonthlyEntryForm project={project} rate={effectiveRate} currency={currency} />
     )}
+
+    <!-- Tasks -->
+    <div>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold" style="color: var(--color-text-muted);">
+          Tareas <span style="opacity: 0.7;">({projectTasks.length})</span>
+        </h2>
+        <div class="flex items-center gap-2">
+          <a href={`/tareas/kanban?project=${project.id}`} class="text-xs px-2 py-1 rounded" style="color: var(--color-accent);">Kanban →</a>
+          <a href={`/tareas?project=${project.id}`} class="text-xs px-2 py-1 rounded" style="color: var(--color-accent);">Ver todas →</a>
+        </div>
+      </div>
+
+      <details class="rounded-lg border mb-3" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        <summary class="px-4 py-2 cursor-pointer text-sm flex items-center gap-2">
+          <span style="color: var(--color-accent);">+</span> Nueva tarea
+        </summary>
+        <div class="border-t" style="border-color: var(--color-border);">
+          <TaskForm projects={[project]} defaultProjectId={project.id} compact={true} />
+        </div>
+      </details>
+
+      <TaskList tasks={projectTasks} projects={[project]} hideProjectCol={true} />
+    </div>
 
     <!-- AW Time -->
     {project.awPatterns && project.awPatterns.length > 0 && (

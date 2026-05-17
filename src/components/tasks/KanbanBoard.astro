@@ -1,0 +1,63 @@
+---
+import type { Project } from '@/lib/types';
+import TaskCard from './TaskCard.astro';
+import {
+  TASK_STATUSES,
+  TASK_STATUS_LABELS,
+  TASK_STATUS_COLORS,
+  type Task,
+  type TaskStatus,
+} from '@/lib/data/tasks';
+
+interface Props {
+  tasks: Task[];
+  projects: Project[];
+}
+
+const { tasks, projects } = Astro.props;
+
+const projectMap = new Map(projects.map((p) => [p.id, p]));
+
+const grouped: Record<TaskStatus, Task[]> = {
+  backlog: [],
+  ready: [],
+  doing: [],
+  blocked: [],
+  done: [],
+};
+for (const t of tasks) {
+  const s = t.status as TaskStatus;
+  if (s in grouped) grouped[s].push(t);
+}
+---
+
+<div class="flex gap-3 overflow-x-auto pb-2" style="scrollbar-width: thin;">
+  {TASK_STATUSES.map((status) => (
+    <div class="w-72 shrink-0 flex flex-col">
+      <div
+        class="rounded-t border-b-0 border px-3 py-2 flex items-center justify-between"
+        style={`background-color: var(--color-surface); border-color: var(--color-border); border-top: 2px solid ${TASK_STATUS_COLORS[status]};`}
+      >
+        <span class="text-xs font-semibold uppercase tracking-wider" style={`color: ${TASK_STATUS_COLORS[status]};`}>
+          {TASK_STATUS_LABELS[status]}
+        </span>
+        <span class="text-xs" style="color: var(--color-text-muted);">{grouped[status].length}</span>
+      </div>
+
+      <div
+        class="rounded-b border border-t-0 p-2 space-y-2 flex-1 min-h-[200px]"
+        style="background-color: var(--color-bg); border-color: var(--color-border);"
+      >
+        {grouped[status].length === 0 ? (
+          <p class="text-xs text-center py-4" style="color: var(--color-text-muted); opacity: 0.5;">
+            (vacío)
+          </p>
+        ) : (
+          grouped[status].map((task) => (
+            <TaskCard task={task} project={projectMap.get(task.projectId) ?? null} />
+          ))
+        )}
+      </div>
+    </div>
+  ))}
+</div>

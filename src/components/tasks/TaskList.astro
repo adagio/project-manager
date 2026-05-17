@@ -1,0 +1,121 @@
+---
+import type { Project } from '@/lib/types';
+import {
+  parseTags,
+  formatEstimate,
+  isOverdue,
+  TASK_STATUSES,
+  TASK_STATUS_LABELS,
+  TASK_STATUS_COLORS,
+  type Task,
+  type TaskStatus,
+} from '@/lib/data/tasks';
+
+interface Props {
+  tasks: Task[];
+  projects: Project[];
+  /** Hide the project column when the list is already scoped to a single project. */
+  hideProjectCol?: boolean;
+}
+
+const { tasks, projects, hideProjectCol = false } = Astro.props;
+const projectMap = new Map(projects.map((p) => [p.id, p]));
+
+const inputStyle = 'background-color: var(--color-surface-hover); color: var(--color-text); border: 1px solid var(--color-border);';
+---
+
+{tasks.length === 0 ? (
+  <p class="text-sm py-4 text-center" style="color: var(--color-text-muted);">
+    No hay tareas que coincidan con los filtros.
+  </p>
+) : (
+  <div class="rounded-lg border overflow-x-auto" style="background-color: var(--color-surface); border-color: var(--color-border);">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b" style="border-color: var(--color-border);">
+          <th class="text-left py-2 px-3 font-medium" style="color: var(--color-text-muted);">Título</th>
+          {!hideProjectCol && <th class="text-left py-2 px-3 font-medium" style="color: var(--color-text-muted);">Proyecto</th>}
+          <th class="text-left py-2 px-3 font-medium" style="color: var(--color-text-muted);">Estado</th>
+          <th class="text-left py-2 px-3 font-medium" style="color: var(--color-text-muted);">Due</th>
+          <th class="text-right py-2 px-3 font-medium" style="color: var(--color-text-muted);">Estimate</th>
+          <th class="text-left py-2 px-3 font-medium" style="color: var(--color-text-muted);">Tags</th>
+          <th class="text-right py-2 px-3 font-medium" style="color: var(--color-text-muted);"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {tasks.map((task) => {
+          const status = task.status as TaskStatus;
+          const project = projectMap.get(task.projectId);
+          const tags = parseTags(task.tags);
+          const overdue = isOverdue(task.dueDate);
+          return (
+            <tr class="border-b" style="border-color: var(--color-border);">
+              <td class="py-2 px-3 align-top">
+                <div class="font-medium">{task.title}</div>
+                {task.description && (
+                  <div class="text-xs whitespace-pre-wrap mt-0.5" style="color: var(--color-text-muted); opacity: 0.8;">{task.description}</div>
+                )}
+              </td>
+              {!hideProjectCol && (
+                <td class="py-2 px-3 align-top whitespace-nowrap">
+                  {project ? (
+                    <span class="inline-flex items-center gap-1.5 text-xs">
+                      <span class="inline-block w-1.5 h-1.5 rounded-full" style={`background-color: ${project.tabColor || '#94a3b8'};`}></span>
+                      {project.name}
+                    </span>
+                  ) : <span class="text-xs" style="color: var(--color-text-muted);">{task.projectId}</span>}
+                </td>
+              )}
+              <td class="py-2 px-3 align-top">
+                <form method="POST" action="/api/tasks/status" class="inline">
+                  <input type="hidden" name="id" value={task.id} />
+                  <select
+                    name="status"
+                    onchange="this.form.requestSubmit()"
+                    class="text-xs px-2 py-1 rounded"
+                    style={`${inputStyle} color: ${TASK_STATUS_COLORS[status]};`}
+                  >
+                    {TASK_STATUSES.map((s) => (
+                      <option value={s} selected={status === s}>{TASK_STATUS_LABELS[s]}</option>
+                    ))}
+                  </select>
+                </form>
+              </td>
+              <td class="py-2 px-3 align-top whitespace-nowrap text-xs" style={`color: ${overdue ? 'var(--color-danger)' : 'var(--color-text-muted)'};`}>
+                {task.dueDate ?? '—'}
+              </td>
+              <td class="py-2 px-3 align-top text-right font-mono text-xs" style="color: var(--color-text-muted);">
+                {formatEstimate(task.estimateHours) || '—'}
+              </td>
+              <td class="py-2 px-3 align-top">
+                {tags.length > 0 ? (
+                  <div class="flex flex-wrap gap-1">
+                    {tags.map((t) => (
+                      <span class="text-[10px] px-1.5 py-0.5 rounded" style="background-color: var(--color-surface-hover); color: var(--color-text-muted);">{t}</span>
+                    ))}
+                  </div>
+                ) : <span class="text-xs" style="color: var(--color-text-muted);">—</span>}
+              </td>
+              <td class="py-2 px-3 align-top text-right whitespace-nowrap">
+                <a
+                  href={`/tareas/${task.id}`}
+                  class="text-xs px-2 py-0.5 rounded"
+                  style="color: var(--color-accent);"
+                >Editar</a>
+                <form method="POST" action="/api/tasks/delete" class="inline">
+                  <input type="hidden" name="id" value={task.id} />
+                  <button
+                    type="submit"
+                    title="Borrar"
+                    class="text-xs px-2 py-0.5 rounded ml-1"
+                    style="color: var(--color-text-muted);"
+                  >Borrar</button>
+                </form>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+)}

@@ -1,0 +1,82 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import PageHeader from '@/components/PageHeader.astro';
+import TaskForm from '@/components/tasks/TaskForm.astro';
+import TaskList from '@/components/tasks/TaskList.astro';
+import TaskFilters from '@/components/tasks/TaskFilters.astro';
+import { getProjects } from '@/lib/projects';
+import { listTasks, TASK_STATUSES, type TaskStatus } from '@/lib/data/tasks';
+
+const projects = getProjects();
+
+const params = Astro.url.searchParams;
+const selectedProject = params.get('project') ?? '';
+const statusParam = params.get('status') ?? '';
+const selectedStatus: TaskStatus | '' = (TASK_STATUSES as string[]).includes(statusParam)
+  ? (statusParam as TaskStatus)
+  : '';
+const selectedTag = params.get('tag') ?? '';
+const error = params.get('error');
+
+const tasks = await listTasks({
+  projectId: selectedProject || undefined,
+  status: selectedStatus || undefined,
+  tag: selectedTag || undefined,
+});
+
+const meta = `${tasks.length} tarea${tasks.length === 1 ? '' : 's'}`;
+
+// Build kanban link preserving filters
+const kanbanQs = new URLSearchParams();
+if (selectedProject) kanbanQs.set('project', selectedProject);
+if (selectedStatus) kanbanQs.set('status', selectedStatus);
+if (selectedTag) kanbanQs.set('tag', selectedTag);
+const kanbanHref = `/tareas/kanban${kanbanQs.toString() ? `?${kanbanQs}` : ''}`;
+---
+
+<Layout title="Tareas — Gestor de Proyectos">
+  <PageHeader title="Tareas" subtitle="Listado">
+    <a
+      href={kanbanHref}
+      class="px-3 py-1.5 text-sm rounded font-medium"
+      style="background-color: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border);"
+    >
+      Vista Kanban →
+    </a>
+  </PageHeader>
+
+  <div class="p-6 space-y-6">
+    {error === 'missing-fields' && (
+      <div class="rounded border p-3 text-sm" style="border-color: var(--color-danger); color: var(--color-danger); background-color: var(--color-surface);">
+        Faltan campos obligatorios (título y proyecto).
+      </div>
+    )}
+
+    <details class="rounded-lg border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+      <summary class="px-4 py-3 cursor-pointer text-sm font-semibold flex items-center gap-2">
+        <span style="color: var(--color-accent);">+</span> Nueva tarea
+      </summary>
+      <div class="border-t" style="border-color: var(--color-border);">
+        <TaskForm
+          projects={projects}
+          defaultProjectId={selectedProject || undefined}
+          compact={false}
+        />
+      </div>
+    </details>
+
+    <div>
+      <TaskFilters
+        projects={projects}
+        selectedProject={selectedProject}
+        selectedStatus={selectedStatus}
+        selectedTag={selectedTag}
+        meta={meta}
+      />
+
+      <TaskList tasks={tasks} projects={projects} />
+    </div>
+  </div>
+</Layout>

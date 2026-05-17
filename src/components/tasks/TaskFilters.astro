@@ -1,0 +1,78 @@
+---
+import type { Project } from '@/lib/types';
+import { TASK_STATUSES, TASK_STATUS_LABELS, type TaskStatus } from '@/lib/data/tasks';
+
+interface Props {
+  projects: Project[];
+  selectedProject?: string;
+  selectedStatus?: TaskStatus | '';
+  selectedTag?: string;
+  /** Form action; defaults to current page (so query string updates). */
+  action?: string;
+  /** Optional text shown next to filters (e.g. counts). */
+  meta?: string;
+}
+
+const {
+  projects,
+  selectedProject = '',
+  selectedStatus = '',
+  selectedTag = '',
+  action,
+  meta,
+} = Astro.props;
+
+const inputStyle = 'background-color: var(--color-surface-hover); color: var(--color-text); border: 1px solid var(--color-border);';
+---
+
+<form method="GET" action={action} class="flex flex-wrap items-end gap-3 mb-4">
+  <div>
+    <label class="block text-xs mb-1" style="color: var(--color-text-muted);">Proyecto</label>
+    <select name="project" class="px-3 py-1.5 text-sm rounded" style={inputStyle}>
+      <option value="">Todos</option>
+      {projects.map((p) => (
+        <option value={p.id} selected={selectedProject === p.id}>{p.name}</option>
+      ))}
+    </select>
+  </div>
+
+  <div>
+    <label class="block text-xs mb-1" style="color: var(--color-text-muted);">Estado</label>
+    <select name="status" class="px-3 py-1.5 text-sm rounded" style={inputStyle}>
+      <option value="">Todos</option>
+      {TASK_STATUSES.map((s) => (
+        <option value={s} selected={selectedStatus === s}>{TASK_STATUS_LABELS[s]}</option>
+      ))}
+    </select>
+  </div>
+
+  <div>
+    <label class="block text-xs mb-1" style="color: var(--color-text-muted);">Tag</label>
+    <input
+      type="text"
+      name="tag"
+      value={selectedTag}
+      placeholder="bug"
+      class="w-32 px-3 py-1.5 text-sm rounded"
+      style={inputStyle}
+    />
+  </div>
+
+  <button
+    type="submit"
+    class="px-4 py-1.5 text-sm rounded font-medium"
+    style="background-color: var(--color-accent); color: var(--color-bg);"
+  >
+    Aplicar
+  </button>
+
+  {(selectedProject || selectedStatus || selectedTag) && (
+    <a
+      href={action ?? Astro.url.pathname}
+      class="px-3 py-1.5 text-sm rounded"
+      style="color: var(--color-text-muted);"
+    >Limpiar</a>
+  )}
+
+  {meta && <span class="ml-auto text-xs" style="color: var(--color-text-muted);">{meta}</span>}
+</form>

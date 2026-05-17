@@ -1,4 +1,4 @@
-import { pgSchema, text, real, primaryKey } from 'drizzle-orm/pg-core';
+import { pgSchema, text, real, integer, primaryKey } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const pmSchema = pgSchema('project_manager');
@@ -100,4 +100,20 @@ export const learnings = pmSchema.table('learnings', {
   content: text('content').notNull(),
   tags: text('tags'), // JSON array as string: '["technical","process"]'
   createdAt: text('created_at').default(sql`now()`).notNull(),
+});
+
+// Tasks
+export const tasks = pmSchema.table('tasks', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  title: text('title').notNull(),
+  description: text('description'),
+  status: text('status').default('backlog').notNull(), // backlog | ready | doing | blocked | done
+  dueDate: text('due_date'),
+  estimateHours: real('estimate_hours'),
+  tags: text('tags'),
+  position: integer('position').default(0).notNull(),
+  createdAt: text('created_at').default(sql`now()`).notNull(),
+  updatedAt: text('updated_at').default(sql`now()`).notNull(),
+  completedAt: text('completed_at'),
 });
