@@ -13,13 +13,37 @@ const { title = 'Gestor de Proyectos' } = Astro.props;
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{title}</title>
+  <script is:inline>
+    (function () {
+      var collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
+      document.documentElement.dataset.sidebarCollapsed = collapsed ? 'true' : 'false';
+    })();
+  </script>
+  <style is:global>
+    html[data-sidebar-collapsed="true"] aside[data-sidebar] { display: none; }
+    html[data-sidebar-collapsed="false"] #sidebar-expand-btn { display: none; }
+  </style>
 </head>
 <body>
+  <button
+    id="sidebar-expand-btn"
+    class="fixed top-2 left-2 z-50 p-2 rounded shadow text-sm leading-none"
+    style="background-color: var(--color-surface); border: 1px solid var(--color-border); color: var(--color-text);"
+    aria-label="Expandir sidebar"
+  >»</button>
   <div class="flex h-screen overflow-hidden">
     <Sidebar currentPage={Astro.url.pathname} />
     <main class="flex-1 overflow-y-auto">
       <slot />
     </main>
   </div>
+  <script>
+    function setSidebarCollapsed(v: boolean) {
+      document.documentElement.dataset.sidebarCollapsed = String(v);
+      localStorage.setItem('sidebar-collapsed', String(v));
+    }
+    document.getElementById('sidebar-expand-btn')?.addEventListener('click', () => setSidebarCollapsed(false));
+    document.getElementById('sidebar-collapse-btn')?.addEventListener('click', () => setSidebarCollapsed(true));
+  </script>
 </body>
 </html>

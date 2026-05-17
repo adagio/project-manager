@@ -11,16 +11,22 @@ const grouped = await getProjectsByCategory();
 const isActive = (href: string) => decodeURIComponent(currentPage) === href;
 ---
 
-<aside class="w-56 flex flex-col h-screen border-r shrink-0" style="background-color: var(--color-surface); border-color: var(--color-border);">
-  <div class="p-4 border-b" style="border-color: var(--color-border);">
-    <a href="/" class="text-lg font-bold" style="color: var(--color-accent);">Proyectos</a>
+<aside data-sidebar class="w-56 flex flex-col h-screen border-r shrink-0" style="background-color: var(--color-surface); border-color: var(--color-border);">
+  <div class="p-4 border-b flex justify-between items-center gap-2" style="border-color: var(--color-border);">
+    <a href="/tareas" class="text-lg font-bold" style="color: var(--color-accent);">Proyectos</a>
+    <button
+      id="sidebar-collapse-btn"
+      class="p-1 rounded text-sm leading-none hover:opacity-80"
+      style="color: var(--color-text-muted);"
+      aria-label="Colapsar sidebar"
+    >«</button>
   </div>
 
   <nav class="flex-1 overflow-y-auto p-2 space-y-4">
     <a
-      href="/"
-      class={`block px-3 py-2 text-sm rounded ${isActive('/') ? 'font-semibold' : ''}`}
-      style={isActive('/') ? `background-color: var(--color-surface-hover); color: var(--color-accent);` : `color: var(--color-text-muted);`}
+      href="/dashboard"
+      class={`block px-3 py-2 text-sm rounded ${isActive('/dashboard') ? 'font-semibold' : ''}`}
+      style={isActive('/dashboard') ? `background-color: var(--color-surface-hover); color: var(--color-accent);` : `color: var(--color-text-muted);`}
     >
       Dashboard
     </a>

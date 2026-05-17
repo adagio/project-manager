@@ -1,0 +1,212 @@
+---
+export const prerender = false;
+
+import Layout from '@/layouts/Layout.astro';
+import PageHeader from '@/components/PageHeader.astro';
+import ProjectCard from '@/components/ProjectCard.astro';
+import { getProjectsByCategory, getRegistry } from '@/lib/projects';
+import {
+  getRepoPathCached,
+  getGitStatus,
+  getCommitActivity,
+  kickoffRepoRefresh,
+  isRefreshing,
+  getLastRefreshAt,
+} from '@/lib/git-client';
+import { getCommandCount } from '@/lib/history-client';
+import { hasClaudeActivity, getClaudePromptCount } from '@/lib/claude-client';
+import CombinedActivity from '@/components/charts/CombinedActivity.astro';
+import type { GitStatus } from '@/lib/types';
+
+const registry = getRegistry();
+const grouped = await getProjectsByCategory();
+
+// Fire-and-forget: refresh repos in background. First render uses whatever
+// is already on disk (cached). Client-side script below reloads once the
+// refresh finishes so the user sees fresh data without manual action.
+kickoffRepoRefresh(registry.projects);
+
+const repoPathMap = new Map<string, string | null>();
+for (const p of registry.projects) {
+  repoPathMap.set(p.id, getRepoPathCached(p));
+}
+
+// Fetch git status for all projects (using PM's own clones, cached)
+const gitResults = await Promise.allSettled(
+  registry.projects.map(async (p) => {
+    const repoPath = repoPathMap.get(p.id);
+    return { id: p.id, status: repoPath ? getGitStatus(repoPath) : getGitStatus('') };
+  })
+);
+
+const gitMap = new Map<string, GitStatus>();
+for (const result of gitResults) {
+  if (result.status === 'fulfilled') {
+    gitMap.set(result.value.id, result.value.status);
+  }
+}
+
+// Command counts
+const cmdMap = new Map<string, number>();
+for (const p of registry.projects) {
+  if (p.historySlug) {
+    cmdMap.set(p.id, getCommandCount(p.historySlug));
+  }
+}
+
+// Claude Code prompt counts
+const claudeMap = new Map<string, number>();
+for (const p of registry.projects) {
+  if (hasClaudeActivity(p)) {
+    claudeMap.set(p.id, getClaudePromptCount(p));
+  }
+}
+
+// Commit activity for combined chart (cached, fast)
+const combinedActivityData = registry.projects
+  .filter(p => repoPathMap.get(p.id))
+  .map(p => {
+    const repoPath = repoPathMap.get(p.id)!;
+    const activity = getCommitActivity(repoPath, 30);
+    const activityObj: Record<string, number> = {};
+    for (const [date, count] of activity) {
+      activityObj[date] = count;
+    }
+    return {
+      projectName: p.name,
+      color: p.tabColor || '#94a3b8',
+      activity: activityObj,
+    };
+  });
+
+// Stats
+const totalProjects = registry.projects.length;
+const now = new Date();
+const oneDayAgo = new Date(now.getTime() - 86400000);
+const activeRecently = registry.projects.filter(p => {
+  const git = gitMap.get(p.id);
+  return git?.lastCommitDate && new Date(git.lastCommitDate) > oneDayAgo;
+}).length;
+
+const refreshing = isRefreshing();
+const lastRefreshAt = getLastRefreshAt();
+---
+
+<Layout title="Dashboard — Gestor de Proyectos">
+  <PageHeader title="Dashboard" subtitle={`${totalProjects} proyectos registrados`} />
+
+  <div class="p-6">
+    <!-- Refresh badge -->
+    <div class="mb-4 text-xs flex items-center gap-2" style="color: var(--color-text-muted);">
+      <span
+        id="refresh-indicator"
+        data-refreshing={refreshing ? 'true' : 'false'}
+        data-last-refresh-at={lastRefreshAt ?? ''}
+        class="inline-flex items-center gap-1.5"
+      >
+        {refreshing ? (
+          <>
+            <span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background-color: var(--color-accent);"></span>
+            Verificando repos…
+          </>
+        ) : lastRefreshAt ? (
+          <>
+            <span class="w-1.5 h-1.5 rounded-full" style="background-color: var(--color-success);"></span>
+            Repos verificados
+          </>
+        ) : (
+          <>
+            <span class="w-1.5 h-1.5 rounded-full" style="background-color: var(--color-text-muted); opacity: 0.5;"></span>
+            Sin verificar todavía
+          </>
+        )}
+      </span>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        <div class="text-2xl font-bold">{totalProjects}</div>
+        <div class="text-xs" style="color: var(--color-text-muted);">Total proyectos</div>
+      </div>
+      <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        <div class="text-2xl font-bold" style="color: var(--color-success);">{activeRecently}</div>
+        <div class="text-xs" style="color: var(--color-text-muted);">Activos hoy</div>
+      </div>
+      <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        <div class="text-2xl font-bold">{registry.projects.filter(p => gitMap.get(p.id)?.modified || gitMap.get(p.id)?.untracked).length}</div>
+        <div class="text-xs" style="color: var(--color-text-muted);">Con cambios</div>
+      </div>
+      <div class="rounded-lg p-4 border" style="background-color: var(--color-surface); border-color: var(--color-border);">
+        <div class="text-2xl font-bold">{[...cmdMap.values()].reduce((a, b) => a + b, 0)}</div>
+        <div class="text-xs" style="color: var(--color-text-muted);">Comandos totales</div>
+      </div>
+    </div>
+
+    <!-- Combined activity chart -->
+    <div class="mb-8">
+      <CombinedActivity data={combinedActivityData} days={30} />
+    </div>
+
+    <!-- Projects by category -->
+    {[...grouped.entries()].map(([category, companyGroups]) => (
+      <div class="mb-8">
+        <h2 class="text-sm font-semibold uppercase tracking-wider mb-4 flex items-center gap-2" style="color: var(--color-text-muted);">
+          <span class="w-2.5 h-2.5 rounded-full" style={`background-color: ${category.color};`}></span>
+          {category.label}
+        </h2>
+        {companyGroups.map(group => (
+          <div class="mb-4">
+            {group.company && (
+              <h3 class="text-xs font-medium mb-2 px-1" style="color: var(--color-text-muted); opacity: 0.7;">{group.company}</h3>
+            )}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {group.projects.map(project => (
+                <ProjectCard
+                  project={project}
+                  category={category}
+                  git={gitMap.get(project.id) ?? null}
+                  commandCount={cmdMap.get(project.id) ?? 0}
+                  claudePromptCount={claudeMap.get(project.id) ?? 0}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    ))}
+  </div>
+
+  <script>
+    // If a background refresh is in flight (or started after page load),
+    // poll the status endpoint and reload once it completes so cards show
+    // fresh data without manual intervention.
+    (() => {
+      const el = document.getElementById('refresh-indicator');
+      if (!el) return;
+      const initialRefreshing = el.dataset.refreshing === 'true';
+      const initialLastRaw = el.dataset.lastRefreshAt || '';
+      const initialLast = initialLastRaw ? Number(initialLastRaw) : null;
+
+      // If nothing is refreshing AND we already have a recent refresh, nothing to do.
+      if (!initialRefreshing && initialLast && Date.now() - initialLast < 60_000) return;
+
+      let cancelled = false;
+      const poll = async () => {
+        if (cancelled) return;
+        try {
+          const res = await fetch('/api/repos/refresh-status', { cache: 'no-store' });
+          const { refreshing, lastRefreshAt } = await res.json();
+          // Refresh has completed (or moved past our initial timestamp) → reload once.
+          if (!refreshing && lastRefreshAt && lastRefreshAt !== initialLast) {
+            cancelled = true;
+            window.location.reload();
+            return;
+          }
+        } catch { /* network blip, keep trying */ }
+        setTimeout(poll, 2000);
+      };
+      setTimeout(poll, 2000);
+    })();
+  </script>
+</Layout>
