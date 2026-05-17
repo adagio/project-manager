@@ -74,6 +74,17 @@
       "awPatterns": ["aw.dashboard", "aw-dashboard"],
       "historySlug": "aw-dashboard",
       "tabColor": "#6C757D"
+    },
+    {
+      "id": "spatial-audio-volume",
+      "name": "Spatial Audio Volume",
+      "category": "solo",
+      "path": "D:/files/projects/individual_me/spatial-audio-volume",
+      "repoUrl": "git@github.com:adagio/audio-volumen-spatial-control.git",
+      "baseBranch": "main",
+      "awPatterns": ["spatial-audio-volume", "Spatial Audio Volume", "audio-volumen-spatial-control"],
+      "historySlug": "spatial-audio-volume",
+      "tabColor": "#8B5CF6"
     }
   ]
 }
