@@ -1,10 +1,12 @@
 import { defineConfig } from 'drizzle-kit';
+import 'dotenv/config';
 
 export default defineConfig({
   schema: './src/lib/db/schema.ts',
   out: './drizzle',
-  dialect: 'sqlite',
+  dialect: 'postgresql',
   dbCredentials: {
-    url: './data/pm.db',
+    url: process.env.DATABASE_URL!,
   },
+  schemaFilter: ['project_manager'],
 });

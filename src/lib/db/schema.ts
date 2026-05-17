@@ -1,8 +1,10 @@
-import { sqliteTable, text, real, primaryKey } from 'drizzle-orm/sqlite-core';
+import { pgSchema, text, real, primaryKey } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
+export const pmSchema = pgSchema('project_manager');
+
 // Companies / Clients
-export const companies = sqliteTable('companies', {
+export const companies = pmSchema.table('companies', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   contact: text('contact'),
@@ -10,20 +12,20 @@ export const companies = sqliteTable('companies', {
 });
 
 // Global settings (key-value)
-export const settings = sqliteTable('settings', {
+export const settings = pmSchema.table('settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),
 });
 
 // Roles
-export const roles = sqliteTable('roles', {
+export const roles = pmSchema.table('roles', {
   id: text('id').primaryKey(),
   label: text('label').notNull(),
   defaultRate: real('default_rate'),
 });
 
 // Project financial config (extends projects.json)
-export const projectConfig = sqliteTable('project_config', {
+export const projectConfig = pmSchema.table('project_config', {
   projectId: text('project_id').primaryKey(),
   companyId: text('company_id').references(() => companies.id),
   rateOverride: real('rate_override'),
@@ -34,7 +36,7 @@ export const projectConfig = sqliteTable('project_config', {
 });
 
 // Project-role assignments with rate override
-export const projectRoles = sqliteTable('project_roles', {
+export const projectRoles = pmSchema.table('project_roles', {
   projectId: text('project_id').notNull(),
   roleId: text('role_id').notNull().references(() => roles.id),
   rateOverride: real('rate_override'),
@@ -43,7 +45,7 @@ export const projectRoles = sqliteTable('project_roles', {
 ]);
 
 // Fixed payments (recurring)
-export const fixedPayments = sqliteTable('fixed_payments', {
+export const fixedPayments = pmSchema.table('fixed_payments', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),
   amount: real('amount').notNull(),
@@ -54,7 +56,7 @@ export const fixedPayments = sqliteTable('fixed_payments', {
 });
 
 // Time entries
-export const timeEntries = sqliteTable('time_entries', {
+export const timeEntries = pmSchema.table('time_entries', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),
   date: text('date').notNull(),
@@ -62,11 +64,11 @@ export const timeEntries = sqliteTable('time_entries', {
   roleId: text('role_id').references(() => roles.id),
   description: text('description'),
   source: text('source').default('manual').notNull(), // manual | activitywatch
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: text('created_at').default(sql`now()`).notNull(),
 });
 
 // Invoices
-export const invoices = sqliteTable('invoices', {
+export const invoices = pmSchema.table('invoices', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),
   number: text('number'),
@@ -81,7 +83,7 @@ export const invoices = sqliteTable('invoices', {
 });
 
 // Invoice line items
-export const invoiceItems = sqliteTable('invoice_items', {
+export const invoiceItems = pmSchema.table('invoice_items', {
   id: text('id').primaryKey(),
   invoiceId: text('invoice_id').notNull().references(() => invoices.id),
   description: text('description').notNull(),
@@ -91,11 +93,11 @@ export const invoiceItems = sqliteTable('invoice_items', {
 });
 
 // Learnings
-export const learnings = sqliteTable('learnings', {
+export const learnings = pmSchema.table('learnings', {
   id: text('id').primaryKey(),
   projectId: text('project_id').notNull(),
   date: text('date').notNull(),
   content: text('content').notNull(),
   tags: text('tags'), // JSON array as string: '["technical","process"]'
-  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`).notNull(),
+  createdAt: text('created_at').default(sql`now()`).notNull(),
 });

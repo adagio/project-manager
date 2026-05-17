@@ -15,10 +15,9 @@ const { project, rate, currency } = Astro.props;
 
 const fmt = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(n);
 
-const pastEntries = db.select().from(invoices)
+const pastEntries = await db.select().from(invoices)
   .where(eq(invoices.projectId, project.id))
-  .orderBy(desc(invoices.date))
-  .all();
+  .orderBy(desc(invoices.date));
 
 const now = new Date();
 const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;

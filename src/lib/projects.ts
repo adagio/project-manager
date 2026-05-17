@@ -23,6 +23,10 @@ export function getRegistry(): ProjectRegistry {
   return loadRegistry();
 }
 
+export function getProjects(): Project[] {
+  return loadRegistry().projects;
+}
+
 export function getProject(id: string): Project | undefined {
   return loadRegistry().projects.find(p => p.id === id);
 }
@@ -31,23 +35,23 @@ export function getCategory(id: string): Category | undefined {
   return loadRegistry().categories.find(c => c.id === id);
 }
 
-export function getCompanyName(projectId: string): string | null {
-  const config = db.select().from(projectConfig)
-    .where(eq(projectConfig.projectId, projectId)).get();
+export async function getCompanyName(projectId: string): Promise<string | null> {
+  const [config] = await db.select().from(projectConfig)
+    .where(eq(projectConfig.projectId, projectId)).limit(1);
   if (!config?.companyId) return null;
 
-  const company = db.select().from(companies)
-    .where(eq(companies.id, config.companyId)).get();
+  const [company] = await db.select().from(companies)
+    .where(eq(companies.id, config.companyId)).limit(1);
   return company?.name ?? null;
 }
 
-export function getProjectStatus(projectId: string): string {
-  const config = db.select().from(projectConfig)
-    .where(eq(projectConfig.projectId, projectId)).get();
+export async function getProjectStatus(projectId: string): Promise<string> {
+  const [config] = await db.select().from(projectConfig)
+    .where(eq(projectConfig.projectId, projectId)).limit(1);
   return config?.status ?? 'active';
 }
 
-export function getProjectsByCategory(): Map<Category, { company: string | null; projects: Project[] }[]> {
+export async function getProjectsByCategory(): Promise<Map<Category, { company: string | null; projects: Project[] }[]>> {
   const registry = loadRegistry();
   const result = new Map<Category, { company: string | null; projects: Project[] }[]>();
 
@@ -57,8 +61,7 @@ export function getProjectsByCategory(): Map<Category, { company: string | null;
 
     const companyGroups = new Map<string | null, Project[]>();
     for (const p of catProjects) {
-      // Resolve company name from DB, fallback to JSON field
-      const companyName = getCompanyName(p.id) ?? p.company ?? null;
+      const companyName = (await getCompanyName(p.id)) ?? p.company ?? null;
       if (!companyGroups.has(companyName)) companyGroups.set(companyName, []);
       companyGroups.get(companyName)!.push(p);
     }

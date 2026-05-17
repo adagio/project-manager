@@ -1,12 +1,13 @@
-import Database from 'better-sqlite3';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import { resolve } from 'node:path';
+import 'dotenv/config';
+import pg from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from './schema';
 
-const DB_PATH = resolve(process.cwd(), 'data', 'pm.db');
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DATABASE_URL is not set. Configure it in PoC/.env');
+}
 
-const sqlite = new Database(DB_PATH);
-sqlite.pragma('journal_mode = WAL');
-sqlite.pragma('foreign_keys = ON');
+const pool = new pg.Pool({ connectionString });
 
-export const db = drizzle(sqlite, { schema });
+export const db = drizzle(pool, { schema });

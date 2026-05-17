@@ -6,7 +6,7 @@ interface Props {
 }
 
 const { currentPage } = Astro.props;
-const grouped = getProjectsByCategory();
+const grouped = await getProjectsByCategory();
 
 const isActive = (href: string) => decodeURIComponent(currentPage) === href;
 ---

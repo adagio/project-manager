@@ -90,20 +90,20 @@ const claudeSessions = claudeAvailable ? getClaudeSessions(project) : [];
 const prs = getPRs(project, 15);
 
 // Financial data
-const config = db.select().from(projectConfig).where(eq(projectConfig.projectId, project.id)).get();
+const [config] = await db.select().from(projectConfig).where(eq(projectConfig.projectId, project.id)).limit(1);
 const paymentType = config?.paymentType || 'hourly';
-const effectiveRate = getEffectiveRate(project.id);
-const currency = getCurrency();
-const invoiceSummary = getInvoiceSummary(project.id);
+const effectiveRate = await getEffectiveRate(project.id);
+const currency = await getCurrency();
+const invoiceSummary = await getInvoiceSummary(project.id);
 
 const now = new Date();
-const fpRows = db.select().from(fixedPayments).where(
+const fpRows = await db.select().from(fixedPayments).where(
   and(
     eq(fixedPayments.projectId, project.id),
     lte(fixedPayments.startDate, now.toISOString().split('T')[0]),
     or(isNull(fixedPayments.endDate), lte(now.toISOString().split('T')[0], fixedPayments.endDate!)),
   )
-).all();
+);
 
 const fixedPaymentData = fpRows.map(fp => ({
   amount: fp.amount,

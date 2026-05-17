@@ -1,6 +1,8 @@
 node_modules/
-data/
-repos/
+/data/
+/repos/
 dist/
 .astro/
 .claude/
+.env
+.env.local

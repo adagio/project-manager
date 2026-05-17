@@ -18,9 +18,9 @@ export const POST: APIRoute = async ({ request, redirect }) => {
   }
 
   const id = `inv-${Date.now()}`;
-  const date = `${month}-01`; // First day of month
+  const date = `${month}-01`;
 
-  db.insert(invoices).values({
+  await db.insert(invoices).values({
     id,
     projectId,
     number: month,
@@ -30,7 +30,7 @@ export const POST: APIRoute = async ({ request, redirect }) => {
     currency,
     status,
     notes: JSON.stringify({ hours }),
-  }).run();
+  });
 
   return redirect(`/proyecto/${projectId}`);
 };
