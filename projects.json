@@ -85,6 +85,26 @@
       "awPatterns": ["spatial-audio-volume", "Spatial Audio Volume", "audio-volumen-spatial-control"],
       "historySlug": "spatial-audio-volume",
       "tabColor": "#8B5CF6"
+    },
+    {
+      "id": "music-pearls",
+      "name": "Music Pearls",
+      "category": "solo",
+      "path": "D:/files/projects/individual_me/music-pearls",
+      "baseBranch": "main",
+      "awPatterns": ["music-pearls", "Music Pearls"],
+      "historySlug": "music-pearls",
+      "tabColor": "#EC4899"
+    },
+    {
+      "id": "que-interesante",
+      "name": "Que Interesante",
+      "category": "solo",
+      "path": "D:/files/projects/individual_me/que-interesante",
+      "baseBranch": "main",
+      "awPatterns": ["que-interesante", "Que Interesante"],
+      "historySlug": "que-interesante",
+      "tabColor": "#14B8A6"
     }
   ]
 }
